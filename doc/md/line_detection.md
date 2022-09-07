@@ -13,9 +13,9 @@
     - [Parameters: 入出力関連](#parameters-入出力関連)
     - [Parameters: PCL関連](#parameters-pcl関連)
 
-## [line_detection.launch](../launch/line_detection.launch)
+## [line_detection.launch](../../launch/line_detection.launch)
 - 2D-LiDARセンサから得た点群から直線を検出します
-- パラメータファイル : [line_detection_param.yaml](../param/line_detection_param.yaml)
+- パラメータファイル : [line_detection_param.yaml](../../param/line_detection_param.yaml)
 
 
 ```bash
@@ -30,7 +30,7 @@ roslaunch point_cloud_object_detection line_detection_param.launch rqt_reconfigu
 ※rqt_reconfigureでパラメータを調整後、パラメータファイルを手打ちで変更してください。  
 
 <div align="center">
-    <img src="../doc/img/rosgraph_line.png">
+    <img src="../img/rosgraph_line.png">
 </div>
 
 ## Node
