@@ -8,11 +8,11 @@
     - [demo.launch](#demolaunch)
 
 # How to Use
-## [point_cloud_object_detection.launch](launch/point_cloud_object_detection.launch)
+## [point_cloud_object_detection.launch](/launch/point_cloud_object_detection.launch)
 - 机、床、棚上の物体検出と配置位置の検出をします
 - 検出位置はトピック通信とTFで出力されます
 - 各検出モードはサービス通信によって変更可能
-- 詳細は[こちら](doc/md/point_cloud_object_detection.md)
+- 詳細は[こちら](/doc/md/point_cloud_object_detection.md)
 
 ```bash
 # rvizあり
@@ -33,9 +33,9 @@ roslaunch point_cloud_object_detection point_cloud_object_detection.launch rqt_r
 
 - [Topに戻る](#pcl-object-detection)
 
-## [line_detection.launch](launch/line_detection.launch)
+## [line_detection.launch](/launch/line_detection.launch)
 - 2D-LiDARセンサから得た点群から直線を検出します
-- 詳細は[こちら](doc/md/line_detection.md)
+- 詳細は[こちら](/doc/md/line_detection.md)
 
 ```bash
 # rvizあり
@@ -54,7 +54,7 @@ roslaunch point_cloud_object_detection line_detection_param.launch rqt_reconfigu
 
 - [Topに戻る](#pcl-object-detection)
 
-## [demo.launch](point_cloud_object_detection/launch/demo/demo.launch)
+## [demo.launch](/point_cloud_object_detection/launch/demo/demo.launch)
 ```bash
 # TABLE_MODE
 $ roslaunch pcl_object_detection demo.launch detection_mode:=1
