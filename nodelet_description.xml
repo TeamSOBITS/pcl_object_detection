@@ -1,0 +1,43 @@
+<library path="lib/libpcl_object_detection">
+    <class name="pcl_object_detection/DetectionManager"
+        type="pcl_object_detection::DetectionManager"
+        base_class_type="nodelet::Nodelet">
+        <description>
+        </description>
+    </class>
+
+    <class name="pcl_object_detection/ObjectDetectionTable"
+        type="pcl_object_detection::ObjectDetectionTable"
+        base_class_type="nodelet::Nodelet">
+        <description>
+        </description>
+    </class>
+
+    <class name="pcl_object_detection/ObjectDetectionFloor"
+        type="pcl_object_detection::ObjectDetectionFloor"
+        base_class_type="nodelet::Nodelet">
+        <description>
+        </description>
+    </class>
+
+    <class name="pcl_object_detection/ObjectDetectionShelf"
+        type="pcl_object_detection::ObjectDetectionShelf"
+        base_class_type="nodelet::Nodelet">
+        <description>
+        </description>
+    </class>
+
+    <class name="pcl_object_detection/PlaceablePoseDetection"
+        type="pcl_object_detection::PlaceablePoseDetection"
+        base_class_type="nodelet::Nodelet">
+        <description>
+        </description>
+    </class>
+
+    <class name="pcl_object_detection/LineDetection"
+        type="pcl_object_detection::LineDetection"
+        base_class_type="nodelet::Nodelet">
+        <description>
+        </description>
+    </class>
+</library>

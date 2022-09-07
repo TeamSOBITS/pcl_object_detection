@@ -1,0 +1,11 @@
+
+<launch>
+    <include file="$(find pcl_object_detection)/launch/demo/scan_publisher.launch">
+        <arg name="rviz"                value="true"/>
+    </include>
+
+    <include file="$(find pcl_object_detection)/launch/line_detection.launch">
+        <arg name="rviz"                value="false"/>
+        <arg name="rqt_reconfigure"     value="true"/>
+    </include>
+</launch>

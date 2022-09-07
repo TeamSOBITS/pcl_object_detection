@@ -1,0 +1,23 @@
+<launch>
+    <arg name="manager_name"            default="nodelet_manager" />
+    <arg name="manager_threads"         default="4" />
+    <arg name="node_start_delay"        default="5.0" />
+
+    <arg name="rviz"                    default="true"/>
+    <arg name="rviz_cfg"                default="$(find pcl_object_detection)/config/rviz/line_detection.rviz"/>
+    <node if="$(arg rviz)" pkg="rviz" type="rviz" name="rviz" args="-d $(arg rviz_cfg)"/>
+
+    <arg name="rqt_reconfigure"         default="false"/>
+
+    <arg name="line_detection_param"         default="$(find pcl_object_detection)/param/line_detection_param.yaml"/>
+
+    <group ns = "line_detection">
+        <node pkg="nodelet" type="nodelet" name="$(arg manager_name)" args="manager" output="screen">
+            <param name="num_worker_threads" value="$(arg manager_threads)" />
+        </node>
+        <node pkg="nodelet" type="nodelet" name="line_detection" args="load pcl_object_detection/LineDetection $(arg manager_name)">
+            <rosparam file="$(arg line_detection_param)" command="load" />
+        </node>
+    </group>
+    <node if="$(arg rqt_reconfigure)" pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@'" />
+</launch>

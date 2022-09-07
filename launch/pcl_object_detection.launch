@@ -1,0 +1,39 @@
+<launch>
+    <arg name="manager_name"            default="nodelet_manager" />
+    <arg name="manager_threads"         default="4" />
+    <arg name="node_start_delay"        default="5.0" />
+
+    <arg name="rviz"                    default="true"/>
+    <arg name="rviz_cfg"                default="$(find pcl_object_detection)/config/rviz/pcl_object_detection.rviz"/>
+    <node if="$(arg rviz)" pkg="rviz" type="rviz" name="rviz" args="-d $(arg rviz_cfg)"/>
+
+    <arg name="rqt_reconfigure"         default="false"/>
+
+    <arg name="detection_mode"          default="1"/>  <!-- OFF = 0, TABLE_MODE = 1, FLOOR_MODE = 2, SHELF_MODE = 3, PLACEABLE_POSITION = 4 -->
+    <arg name="table_param"             default="$(find pcl_object_detection)/param/object_detection_table_param.yaml"/>
+    <arg name="floor_param"             default="$(find pcl_object_detection)/param/object_detection_floor_param.yaml"/>
+    <arg name="shelf_param"             default="$(find pcl_object_detection)/param/object_detection_shelf_param.yaml"/>
+    <arg name="placeable_param"         default="$(find pcl_object_detection)/param/placeable_postion_detection_param.yaml"/>
+
+    <group ns = "pcl_object_detection">
+        <node pkg="nodelet" type="nodelet" name="$(arg manager_name)" args="manager" output="screen">
+            <param name="num_worker_threads" value="$(arg manager_threads)" />
+        </node>
+        <node pkg="nodelet" type="nodelet" name="object_detection_table" args="load pcl_object_detection/ObjectDetectionTable $(arg manager_name)" >
+            <rosparam file="$(arg table_param)" command="load" />
+        </node>
+        <node pkg="nodelet" type="nodelet" name="object_detection_floor" args="load pcl_object_detection/ObjectDetectionFloor $(arg manager_name)" >
+            <rosparam file="$(arg floor_param)" command="load" />
+        </node>
+        <node pkg="nodelet" type="nodelet" name="object_detection_shelf" args="load pcl_object_detection/ObjectDetectionShelf $(arg manager_name)" >
+            <rosparam file="$(arg shelf_param)" command="load" />
+        </node>
+        <node pkg="nodelet" type="nodelet" name="placeable_pose_detection" args="load pcl_object_detection/PlaceablePoseDetection $(arg manager_name)" >
+            <rosparam file="$(arg placeable_param)" command="load" />
+        </node>
+        <node pkg="nodelet" type="nodelet" name="detection_manager" args="load pcl_object_detection/DetectionManager $(arg manager_name)" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' " >
+            <param name="detection_mode" value="$(arg detection_mode)" />
+        </node>
+    </group>
+    <node if="$(arg rqt_reconfigure)" pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@'" />
+</launch>

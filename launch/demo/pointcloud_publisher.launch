@@ -1,0 +1,19 @@
+<launch>
+    <arg name="detection_mode"      default="1"/>  <!-- OFF = 0, TABLE_MODE = 1, FLOOR_MODE = 2, SHELF_MODE = 3, PLACEABLE_POSITION = 4 -->
+    <arg name="rqt_reconfigure"     default="true"/>
+
+    <arg name="rviz"                    default="true"/>
+    <arg name="rviz_cfg"                default="$(find pcl_object_detection)/config/rviz/demo.rviz"/>
+    <node if="$(arg rviz)" pkg="rviz" type="rviz" name="rviz" args="-d $(arg rviz_cfg)"/>
+
+    <node pkg="pcl_object_detection" type="pcl_object_detection_pointcloud_publisher" name="pointcloud_publisher" output="screen">
+        <param name="detection_mode"        type="int"  value="$(arg detection_mode)"/>
+        <param name="table_pcd_path"        type="str"  value="$(find pcl_object_detection)/pcd/table_object_binary.pcd"/>
+        <param name="floor_pcd_path"        type="str"  value="$(find pcl_object_detection)/pcd/floor_object_binary.pcd"/>
+        <param name="shelf_pcd_path"        type="str"  value="$(find pcl_object_detection)/pcd/shelf_object_binary.pcd"/>
+        <param name="placeable_pcd_path"    type="str"  value="$(find pcl_object_detection)/pcd/table_object_binary.pcd"/>
+    </node>
+    <node pkg="tf" type="static_transform_publisher" name="robot2senser" args="0 0 1.35 -1.54 0.0 -2.0 base_footprint camera_link 100" />
+    <node if="$(arg rqt_reconfigure)" pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconfigure"/>
+</launch>
+

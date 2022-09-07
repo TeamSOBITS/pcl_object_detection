@@ -1,0 +1,26 @@
+<launch>
+    <arg name="output"           default="screen"/>
+    <arg name="pointcloud_topic" default="/points2"/>
+    <arg name="target_frame"     default="base_footprint"/>
+    <arg name="save_path"        default="$(find pcl_object_detection)/pcd/"/>
+    <arg name="save_file"        default="rack_obstacle_zoom"/>
+
+    <arg name="rviz"             default="true"/>
+    <arg name="rviz_cfg"         default="$(find pcl_object_detection)/config/rviz/pcl_object_detection.rviz"/>
+
+    <arg name="rosbag"           default="true"/>
+    <arg name="rosbag_cfg"       default="/home/sobits/catkin_ws/src/rosbag/shelf_obstacle_zoom_2.bag"/>
+
+    <group ns = "topic_template">
+        <node pkg="pcl_object_detection" type="pcl_object_detection_save_pcd" name="save_pcd" output="$(arg output)">
+                <param name="pointcloud_topic"  type="string"    value="$(arg pointcloud_topic)"/>
+                <param name="target_frame"      type="string"    value="$(arg target_frame)"/>
+                <param name="save_path"         type="string"    value="$(arg save_path)"/>
+                <param name="save_file"         type="string"    value="$(arg save_file)"/>
+        </node>
+    </group>
+
+    <node if="$(arg rviz)" pkg="rviz" type="rviz" name="rviz" args="-d $(arg rviz_cfg)"/>
+    <node if="$(arg rosbag)" pkg="rosbag" type="play" name="rosbag_play" required="true" args="$(arg rosbag_cfg) --clock --loop"/>
+
+</launch>

@@ -1,0 +1,25 @@
+
+<launch>
+    <arg name="detection_mode"          default="1"/>  <!-- TABLE_MODE = 1, FLOOR_MODE = 2, SHELF_MODE = 3, PLACEABLE_POSITION = 4 -->
+    <arg name="table_param"             default="$(find pcl_object_detection)/param/demo/table_demo_param.yaml"/>
+    <arg name="floor_param"             default="$(find pcl_object_detection)/param/demo/floor_demo_param.yaml"/>
+    <arg name="shelf_param"             default="$(find pcl_object_detection)/param/demo/shelf_demo_param.yaml"/>
+    <arg name="placeable_param"         default="$(find pcl_object_detection)/param/demo/placeable_demo_param.yaml"/>
+    <arg name="rviz"                    default="true"/>
+    <include file="$(find pcl_object_detection)/launch/demo/pointcloud_publisher.launch">
+        <arg name="rviz"                value="$(arg rviz)"/>
+        <arg name="rqt_reconfigure"     value="false"/>
+        <arg name="detection_mode"      value="$(arg detection_mode)"/>
+    </include>
+
+    <include file="$(find pcl_object_detection)/launch/pcl_object_detection.launch">
+        <arg name="node_start_delay"    value="5.0"/>
+        <arg name="rviz"                value="false"/>
+        <arg name="rqt_reconfigure"     value="true"/>
+        <arg name="detection_mode"      value="$(arg detection_mode)"/>
+        <arg name="table_param"         value="$(arg table_param)"/>
+        <arg name="floor_param"         value="$(arg floor_param)"/>
+        <arg name="shelf_param"         value="$(arg shelf_param)"/>
+        <arg name="placeable_param"     value="$(arg placeable_param)"/>
+    </include>
+</launch>

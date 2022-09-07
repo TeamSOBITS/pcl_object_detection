@@ -1,0 +1,12 @@
+scan_topic_name : /scan
+base_frame_name : base_footprint
+run_ctr : true
+publish_cloud_line : true
+publish_line_info : true
+publish_marker : true
+
+passthrough_y_min : -1.0
+passthrough_y_max : 1.0
+
+threshold_distance : 0.01
+probability : 0.95
