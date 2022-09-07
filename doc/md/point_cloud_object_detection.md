@@ -9,7 +9,7 @@
     - [Parameters: 入出力関連](#parameters-入出力関連)
     - [Parameters: PCL関連](#parameters-pcl関連)
 
-# [point_cloud_object_detection.launch](/point_cloud_object_detection/launch/point_cloud_object_detection.launch)
+# [point_cloud_object_detection.launch](../launch/point_cloud_object_detection.launch)
 - 机、床、棚上の物体検出と配置位置の検出をします
 - 検出位置はトピック通信とTFで出力されます
 - 各検出モードはサービス通信によって変更可能
@@ -18,10 +18,10 @@
 |番号|モード名|意味|パラメータファイル|
 |---|---|---|---|
 |0|OFF|検出オフ(入力点群を受け取らない)||
-|1|TABLE_MODE|机上の物体を検出する|[object_detection_table_param.yaml](/param/object_detection_table_param.yaml)|
-|2|FLOOR_MODE|床上の物体を検出する|[object_detection_floor_param.yaml](/param/object_detection_floor_param.yaml)||
-|3|SHELF_MODE|棚の中の物体を検出する(**未実装**)|[object_detection_shelf_param.yaml](/param/object_detection_shelf_param.yaml)|
-|4|PLACEABLE_POSITION|配置位置を検出する|[placeable_postion_detection_param.yaml](/param/placeable_postion_detection_param.yaml)
+|1|TABLE_MODE|机上の物体を検出する|[object_detection_table_param.yaml](../param/object_detection_table_param.yaml)|
+|2|FLOOR_MODE|床上の物体を検出する|[object_detection_floor_param.yaml](../param/object_detection_floor_param.yaml)||
+|3|SHELF_MODE|棚の中の物体を検出する(**未実装**)|[object_detection_shelf_param.yaml](../param/object_detection_shelf_param.yaml)|
+|4|PLACEABLE_POSITION|配置位置を検出する|[placeable_postion_detection_param.yaml](../param/placeable_postion_detection_param.yaml)
 
 ```bash
 # rvizあり
@@ -35,7 +35,7 @@ roslaunch point_cloud_object_detection point_cloud_object_detection.launch rqt_r
 ※rqt_reconfigureでパラメータを調整後、パラメータファイルを手打ちで変更してください。  
 
 <div align="center">
-    <img src="doc/img/rosgraph.png">
+    <img src="../doc/img/rosgraph.png">
 </div>
 
 ## Node
