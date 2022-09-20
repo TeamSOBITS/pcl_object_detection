@@ -71,7 +71,7 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Name: LaserScan
       Position Transformer: XYZ
-      Queue Size: 10
+      Queue Size: 1
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.029999999329447746
@@ -99,7 +99,7 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Name: Line
       Position Transformer: XYZ
-      Queue Size: 10
+      Queue Size: 1
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.05000000074505806
@@ -115,7 +115,7 @@ Visualization Manager:
       Name: Marker
       Namespaces:
         line_info: true
-      Queue Size: 100
+      Queue Size: 10
       Value: true
     - Class: rviz/TF
       Enabled: true
