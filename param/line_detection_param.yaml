@@ -1,6 +1,6 @@
 scan_topic_name : /scan
 base_frame_name : base_footprint
-run_ctr : true
+run_ctr : false
 publish_cloud_line : true
 publish_line_info : true
 publish_marker : true
