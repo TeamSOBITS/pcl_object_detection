@@ -1,5 +1,6 @@
 pointcloud_topic_name : /points2
 base_frame_name : base_footprint
+# base_frame_name : azure_camera_base
 publish_cloud_detection_range : true
 publish_cloud_object : true
 publish_pose_array : true
@@ -16,10 +17,10 @@ use_voxel : false
 leaf_size : 0.01
 
 cluster_tolerance : 0.03
-min_cluster_point_size : 50
-max_cluster_point_size : 5000
+min_cluster_point_size : 200
+max_cluster_point_size : 10000
 
-threshold_distance : 0.01
+threshold_distance : 0.03
 probability : 0.95
 
 object_size_x_min : 0.00

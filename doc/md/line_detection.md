@@ -20,11 +20,11 @@
 
 ```bash
 # rvizあり
-roslaunch point_cloud_object_detection line_detection_param.launch
+roslaunch pcl_object_detection line_detection_param.launch
 # rvizなし
-roslaunch point_cloud_object_detection line_detection_param.launch rviz:=false
+roslaunch pcl_object_detection line_detection_param.launch rviz:=false
 # rqt_reconfigureによるパラメータ調整
-roslaunch point_cloud_object_detection line_detection_param.launch rqt_reconfigure:=true
+roslaunch pcl_object_detection line_detection_param.launch rqt_reconfigure:=true
 ```
 ※rqt_reconfigureはパラメータを動的に変更できるが，パラメータファイルは上書きされません。  
 ※rqt_reconfigureでパラメータを調整後、パラメータファイルを手打ちで変更してください。  
