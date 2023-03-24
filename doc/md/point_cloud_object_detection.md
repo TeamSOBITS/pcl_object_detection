@@ -1,6 +1,6 @@
 # Point Cloud Object Detection
 ## Contents
-- [point_cloud_object_detection.launch](#point_cloud_object_detectionlaunch)
+- [pcl_object_detection.launch](#pcl_object_detection.launch)
     - [Node](#node)
     - [Subscriptions](#subscriptions)
     - [Publications](#publications)
@@ -9,7 +9,7 @@
     - [Parameters: 入出力関連](#parameters-入出力関連)
     - [Parameters: PCL関連](#parameters-pcl関連)
 
-# [point_cloud_object_detection.launch](point_cloud_object_detection/launch/point_cloud_object_detection.launch)
+# [pcl_object_detection.launch](pcl_object_detection/launch/pcl_object_detection.launch)
 - 机、床、棚上の物体検出と配置位置の検出をします
 - 検出位置はトピック通信とTFで出力されます
 - 各検出モードはサービス通信によって変更可能
@@ -25,11 +25,11 @@
 
 ```bash
 # rvizあり
-roslaunch point_cloud_object_detection point_cloud_object_detection.launch
+roslaunch pcl_object_detection pcl_object_detection.launch
 # rvizなし
-roslaunch point_cloud_object_detection point_cloud_object_detection.launch rviz:=false
+roslaunch pcl_object_detection pcl_object_detection.launch rviz:=false
 # rqt_reconfigureによるパラメータ調整
-roslaunch point_cloud_object_detection point_cloud_object_detection.launch rqt_reconfigure:=true
+roslaunch pcl_object_detection pcl_object_detection.launch rqt_reconfigure:=true
 ```
 ※rqt_reconfigureはパラメータを動的に変更できるが，パラメータファイルは上書きされません。  
 ※rqt_reconfigureでパラメータを調整後、パラメータファイルを手打ちで変更してください。  
