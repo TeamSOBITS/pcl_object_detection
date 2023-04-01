@@ -9,7 +9,7 @@
     - [Parameters: 入出力関連](#parameters-入出力関連)
     - [Parameters: PCL関連](#parameters-pcl関連)
 
-# [pcl_object_detection.launch](pcl_object_detection/launch/pcl_object_detection.launch)
+# [pcl_object_detection.launch](../launch/pcl_object_detection.launch)
 - 机、床、棚上の物体検出と配置位置の検出をします
 - 検出位置はトピック通信とTFで出力されます
 - 各検出モードはサービス通信によって変更可能
@@ -18,10 +18,10 @@
 |番号|モード名|意味|パラメータファイル|
 |---|---|---|---|
 |0|OFF|検出オフ(入力点群を受け取らない)||
-|1|TABLE_MODE|机上の物体を検出する|[object_detection_table_param.yaml](param/object_detection_table_param.yaml)|
-|2|FLOOR_MODE|床上の物体を検出する|[object_detection_floor_param.yaml](param/object_detection_floor_param.yaml)||
-|3|SHELF_MODE|棚の中の物体を検出する(**未実装**)|[object_detection_shelf_param.yaml](param/object_detection_shelf_param.yaml)|
-|4|PLACEABLE_POSITION|配置位置を検出する|[placeable_postion_detection_param.yaml](param/placeable_postion_detection_param.yaml)
+|1|TABLE_MODE|机上の物体を検出する|[object_detection_table_param.yaml](../../param/object_detection_table_param.yaml)|
+|2|FLOOR_MODE|床上の物体を検出する|[object_detection_floor_param.yaml](../../param/object_detection_floor_param.yaml)||
+|3|SHELF_MODE|棚の中の物体を検出する(**未実装**)|[object_detection_shelf_param.yaml](../../param/object_detection_shelf_param.yaml)|
+|4|PLACEABLE_POSITION|配置位置を検出する|[placeable_postion_detection_param.yaml](../../param/placeable_postion_detection_param.yaml)
 
 ```bash
 # rvizあり
@@ -35,7 +35,7 @@ roslaunch pcl_object_detection pcl_object_detection.launch rqt_reconfigure:=true
 ※rqt_reconfigureでパラメータを調整後、パラメータファイルを手打ちで変更してください。  
 
 <div align="center">
-    <img src="doc/img/rosgraph.png">
+    <img src="../img/rosgraph.png">
 </div>
 
 ## Node
@@ -110,4 +110,4 @@ roslaunch pcl_object_detection pcl_object_detection.launch rqt_reconfigure:=true
 |placeable_search_interval|double|0.01|配置位置の検索間隔[m] (PLACEABLE_POSITIONで使用)|
 |obstacle_tolerance|double|0.05|配置位置の検索での障害物許容範囲[m] (PLACEABLE_POSITIONで使用)|
 
-- [Topに戻る](https://gitlab.com/TeamSOBITS/pcl_object_detection)
+- [Topに戻る](/https://github.com/TeamSOBITS/pcl_object_detection)

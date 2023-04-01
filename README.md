@@ -54,7 +54,7 @@ roslaunch point_cloud_object_detection line_detection_param.launch rqt_reconfigu
 
 - [Topに戻る](#pcl-object-detection)
 
-## [demo.launch](point_cloud_object_detection/launch/demo/demo.launch)
+## [demo.launch](launch/demo/demo.launch)
 ```bash
 # TABLE_MODE
 $ roslaunch pcl_object_detection demo.launch detection_mode:=1

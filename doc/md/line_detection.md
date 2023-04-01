@@ -13,9 +13,9 @@
     - [Parameters: 入出力関連](#parameters-入出力関連)
     - [Parameters: PCL関連](#parameters-pcl関連)
 
-## [line_detection.launch](launch/line_detection.launch)
+## [line_detection.launch](../../launch/line_detection.launch)
 - 2D-LiDARセンサから得た点群から直線を検出します
-- パラメータファイル : [line_detection_param.yaml](param/line_detection_param.yaml)
+- パラメータファイル : [line_detection_param.yaml](../../param/line_detection_param.yaml)
 
 
 ```bash
@@ -30,7 +30,7 @@ roslaunch pcl_object_detection line_detection_param.launch rqt_reconfigure:=true
 ※rqt_reconfigureでパラメータを調整後、パラメータファイルを手打ちで変更してください。  
 
 <div align="center">
-    <img src="doc/img/rosgraph_line.png">
+    <img src="../img/rosgraph_line.png">
 </div>
 
 ## Node
@@ -75,4 +75,4 @@ roslaunch pcl_object_detection line_detection_param.launch rqt_reconfigure:=true
 |threshold_distance|double|0.015|直線検出時のモデルしきい値(ユーザ指定のパラメータ)の距離[m]|
 |probability|double|0.95|直線検出時の外れ値のないサンプルを少なくとも1つ選択する確率を設定(モデル適合確率)|
 
-- [Topに戻る](https://gitlab.com/TeamSOBITS/pcl_object_detection)
+- [Topに戻る](/https://github.com/TeamSOBITS/pcl_object_detection)
