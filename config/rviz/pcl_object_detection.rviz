@@ -69,7 +69,7 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Name: OriginalCloud
       Position Transformer: XYZ
-      Queue Size: 10
+      Queue Size: 1
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.009999999776482582
@@ -97,7 +97,7 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Name: CloudDownsampling
       Position Transformer: XYZ
-      Queue Size: 10
+      Queue Size: 1
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.009999999776482582
@@ -140,7 +140,7 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Name: DetectionRange_PointCloud2
       Position Transformer: XYZ
-      Queue Size: 10
+      Queue Size: 1
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.009999999776482582
@@ -168,7 +168,7 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Name: ObjectPointCloud2
       Position Transformer: XYZ
-      Queue Size: 10
+      Queue Size: 1
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.009999999776482582

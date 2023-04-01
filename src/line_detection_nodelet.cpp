@@ -106,7 +106,7 @@ void pcl_object_detection::LineDetection::callbackScan2D ( const sensor_msgs::La
     cloud_line->header.frame_id = cloud_scan2d->header.frame_id;
     angle_deg_ = coefficients->values[3]*(180/M_PI);
     distance_ = std::hypotf( centroid.x(), centroid.y() );
-    NODELET_INFO("[ LineDetection ]\tAngle[deg] = %.2lf,\tDistance[m] = %.2lf", angle_deg_, distance_ );
+    NODELET_INFO("\033[1;32m[ LineDetection ]\tAngle[deg] = %.2lf,\tDistance[m] = %.2lf \033[m", angle_deg_, distance_ );
     pcl_conversions::toPCL(ros::Time::now(), cloud_line->header.stamp);
     info->line_angle_deg = angle_deg_;
     info->line_distance = distance_;

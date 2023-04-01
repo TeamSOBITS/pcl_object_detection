@@ -76,7 +76,7 @@ bool pcl_object_detection::ObjectDetectionShelf::callbackSubscriberSwitch( sobit
 }
 
 void pcl_object_detection::ObjectDetectionShelf::callbackCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg) {
-    NODELET_INFO("[ ObjectDetectionShelf ]");
+    NODELET_INFO("\033[1;32m[ ObjectDetectionShelf ] \033[m");
     return;
 }
 

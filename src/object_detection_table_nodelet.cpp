@@ -110,7 +110,7 @@ void pcl_object_detection::ObjectDetectionTable::callbackCloud(const sensor_msgs
     if ( need_cloud_detection_range_ ) pub_cloud_detection_range_.publish( cloud );
     if ( need_cloud_object_ ) pub_cloud_object_.publish( cloud_object );
     if ( need_pose_array_ ) pub_pose_array_.publish( pose_array );
-    NODELET_INFO("[ ObjectDetectionTable ]\tObject count = %d", object_num );
+    NODELET_INFO("\033[1;32m[ ObjectDetectionTable ]\tObject count = %d \033[m", object_num );
     return;
 }
 

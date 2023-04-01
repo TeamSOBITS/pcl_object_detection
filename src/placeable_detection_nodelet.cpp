@@ -200,7 +200,7 @@ void pcl_object_detection::PlaceablePoseDetection::callbackCloud(const sensor_ms
     if ( need_cloud_detection_range_ ) pub_cloud_detection_range_.publish( cloud_plane );
     if ( need_cloud_object_ ) pub_cloud_object_.publish( cloud );
     if ( need_pose_array_ ) pub_pose_array_.publish( pose_array );
-    NODELET_INFO("[ PlaceablePoseDetection ]\tObject count = %d", object_num );
+    NODELET_INFO("\033[1;32m[ PlaceablePoseDetection ]\tObject count = %d \033[m", object_num );
     return;
 }
 
