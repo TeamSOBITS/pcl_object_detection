@@ -203,6 +203,8 @@ void pcl_object_detection::PlaceablePoseDetection::callbackCloud(const sensor_ms
         transformStamped.transform.translation.x = transform.getOrigin().x();
         transformStamped.transform.translation.y = transform.getOrigin().y();
         transformStamped.transform.translation.z = transform.getOrigin().z();
+        transformStamped.transform.rotation = tf2::toMsg(transform.getRotation());
+
         broadcaster_.sendTransform(transformStamped);
 
     } else ROS_ERROR("NO placeable_point");

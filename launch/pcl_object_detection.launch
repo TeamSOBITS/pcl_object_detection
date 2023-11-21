@@ -3,13 +3,13 @@
     <arg name="manager_threads"         default="4" />
     <arg name="node_start_delay"        default="5.0" />
 
-    <arg name="rviz"                    default="true"/>
+    <arg name="rviz"                    default="false"/>
     <arg name="rviz_cfg"                default="$(find pcl_object_detection)/config/rviz/pcl_object_detection.rviz"/>
     <node if="$(arg rviz)" pkg="rviz" type="rviz" name="rviz" args="-d $(arg rviz_cfg)"/>
 
     <arg name="rqt_reconfigure"         default="false"/>
 
-    <arg name="detection_mode"          default="1"/>  <!-- OFF = 0, TABLE_MODE = 1, FLOOR_MODE = 2, SHELF_MODE = 3, PLACEABLE_POSITION = 4 -->
+    <arg name="detection_mode"          default="4"/>  <!-- OFF = 0, TABLE_MODE = 1, FLOOR_MODE = 2, SHELF_MODE = 3, PLACEABLE_POSITION = 4 -->
     <arg name="table_param"             default="$(find pcl_object_detection)/param/object_detection_table_param.yaml"/>
     <arg name="floor_param"             default="$(find pcl_object_detection)/param/object_detection_floor_param.yaml"/>
     <arg name="shelf_param"             default="$(find pcl_object_detection)/param/object_detection_shelf_param.yaml"/>
