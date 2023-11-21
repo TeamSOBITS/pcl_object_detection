@@ -1,7 +1,7 @@
 /* 点群データを受け取る */
 
 /* ROSの基本ヘッダ */
-#include <ros/ros.h>                            
+#include <ros/ros.h>
 /* 入出力関連ヘッダ */
 #include <iostream>
 /* tf */
@@ -24,7 +24,7 @@ class savePCLFileNode {
         ros::NodeHandle nh_;
         ros::NodeHandle pnh_;
         ros::Subscriber sub_points_;
-        tf::TransformListener tf_listener_;
+        tf::TransformListener tfListener_;
         PointCloud::Ptr cloud_transformed_;
         std::string target_frame_;
         std::string save_path_;
@@ -38,8 +38,8 @@ class savePCLFileNode {
 
                 if (target_frame_.empty() == false) {
                     try {
-                        tf_listener_.waitForTransform(target_frame_, cloud_src.header.frame_id, ros::Time(0), ros::Duration(1.0));
-                        pcl_ros::transformPointCloud(target_frame_, ros::Time(0), cloud_src, cloud_src.header.frame_id,  *cloud_transformed_, tf_listener_);
+                        tfListener_.waitForTransform(target_frame_, cloud_src.header.frame_id, ros::Time(0), ros::Duration(1.0));
+                        pcl_ros::transformPointCloud(target_frame_, ros::Time(0), cloud_src, cloud_src.header.frame_id,  *cloud_transformed_, tfListener_);
                     }
                     catch ( const tf::TransformException& ex) {
                         ROS_ERROR("%s", ex.what());
