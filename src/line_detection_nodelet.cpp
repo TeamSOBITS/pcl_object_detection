@@ -7,9 +7,9 @@
 #include <pcl_object_detection/LineInfo.h>
 #include <pcl_object_detection/LineDetectionService.h>
 
-#include <sobit_common_msg/RunCtrl.h>
-#include <sobit_common_msg/ObjectPose.h>
-#include <sobit_common_msg/ObjectPoseArray.h>
+#include <pcl_object_detection/RunCtrl.h>
+#include <pcl_object_detection/ObjectPose.h>
+#include <pcl_object_detection/ObjectPoseArray.h>
 
 #include <tf2_ros/transform_broadcaster.h>
 #include <std_msgs/Bool.h>

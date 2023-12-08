@@ -58,7 +58,7 @@
 | ------------- | ------------- |
 | Ubuntu | 20.04 (Focal Fossa) |
 | ROS | Noetic Ninjemys |
-| Python | 3.0~ |
+| C++ | 3.10.2~ |
 
 ### インストール方法
 1. ROSの`src`フォルダに移動します．
@@ -85,6 +85,12 @@
 - 机、床、棚上の物体検出と配置位置の検出をします
 - 検出位置はトピック通信とTFで出力されます
 - 各検出モードはサービス通信によって変更可能
+  - mode0 : OFF
+  - mode1 : table mode(ymal fileにより高さの調節可能)
+  - mode2 : floor mode(ymal fileにより高さの調節可能)
+  - mode3 : shelf mode(ymal fileにより高さの調節可能)
+  - mode4 : placeble detection(置き位置検出)
+
 - 詳細は[こちら](doc/md/point_cloud_object_detection.md)
 
 ```bash
@@ -158,10 +164,7 @@ $ roslaunch pcl_object_detection demo_line.launch
 
 <!-- 変更履歴 -->
 ## 変更履歴
-- 1.0: Open Source Software(2023.11.15)
-  - 詳細1
-  - 詳細2
-
+  変更履歴はrst.fileを参照してください
 <!-- 参考文献 -->
 ## 参考文献
 

@@ -14,7 +14,6 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   roscpp
   rospy
-  sobit_common_msg
   std_msgs
   visualization_msgs
   tf2
@@ -26,11 +25,15 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   FILES
   LineInfo.msg
+  ObjectPose.msg
+  ObjectPoseArray.msg
+  StringArray.msg
 )
 
 # Generate services in the 'srv' folder
 add_service_files(
   FILES
+  RunCtrl.srv
   DetectionModeCtr.srv
   LineDetectionService.srv
 )
@@ -68,7 +71,6 @@ catkin_package(
   pcl_ros
   roscpp
   rospy
-  sobit_common_msg
   std_msgs
   visualization_msgs
   tf2
