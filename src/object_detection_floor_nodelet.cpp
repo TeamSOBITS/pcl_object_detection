@@ -33,7 +33,7 @@ namespace pcl_object_detection {
             dynamic_reconfigure::Server<pcl_object_detection::PCLParameterConfig>::CallbackType f_;
 
             void callbackDynamicReconfigure(pcl_object_detection::PCLParameterConfig& config, uint32_t level);
-            bool callbackSubscriberSwitch( sobit_common_msg::RunCtrl::Request &req, sobit_common_msg::RunCtrl::Response &res  );
+            bool callbackSubscriberSwitch( pcl_object_detection::RunCtrl::Request &req, pcl_object_detection::RunCtrl::Response &res  );
             void callbackCloud( const sensor_msgs::PointCloud2ConstPtr& cloud_msg );
 
         public:
@@ -60,7 +60,7 @@ void pcl_object_detection::ObjectDetectionFloor::callbackDynamicReconfigure(pcl_
     return;
 }
 
-bool pcl_object_detection::ObjectDetectionFloor::callbackSubscriberSwitch( sobit_common_msg::RunCtrl::Request &req, sobit_common_msg::RunCtrl::Response &res ) {
+bool pcl_object_detection::ObjectDetectionFloor::callbackSubscriberSwitch( pcl_object_detection::RunCtrl::Request &req, pcl_object_detection::RunCtrl::Response &res ) {
     if ( req.request ) {
         NODELET_INFO ("[ ObjectDetectionFloor ] Turn on the ObjectDetectionFloor" );
         sub_point_cloud_ = nh_.subscribe(pointcloud_topic_, 10, &ObjectDetectionFloor::callbackCloud, this); //オン（再定義）
@@ -75,7 +75,7 @@ bool pcl_object_detection::ObjectDetectionFloor::callbackSubscriberSwitch( sobit
 void pcl_object_detection::ObjectDetectionFloor::callbackCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_msg) {
     PointCloud::Ptr cloud (new PointCloud());
     PointCloud::Ptr cloud_object (new PointCloud());
-    sobit_common_msg::ObjectPoseArrayPtr pose_array (new sobit_common_msg::ObjectPoseArray);
+    pcl_object_detection::ObjectPoseArrayPtr pose_array (new pcl_object_detection::ObjectPoseArray);
     pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
     pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
     std::vector<pcl::PointIndices> cluster_indices;
@@ -124,7 +124,7 @@ void pcl_object_detection::ObjectDetectionFloor::onInit() {
 
     pub_cloud_detection_range_ = nh_.advertise<PointCloud>("cloud_detection_range", 1);
     pub_cloud_object_ = nh_.advertise<PointCloud>("cloud_object", 1);
-    pub_pose_array_ = nh_.advertise<sobit_common_msg::ObjectPoseArray>("object_poses", 1);
+    pub_pose_array_ = nh_.advertise<pcl_object_detection::ObjectPoseArray>("object_poses", 1);
 }
 
 PLUGINLIB_EXPORT_CLASS(pcl_object_detection::ObjectDetectionFloor, nodelet::Nodelet)

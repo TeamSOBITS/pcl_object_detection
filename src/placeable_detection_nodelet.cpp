@@ -48,7 +48,7 @@ namespace pcl_object_detection {
             dynamic_reconfigure::Server<pcl_object_detection::PCLParameterConfig>::CallbackType f_;
 
             void callbackDynamicReconfigure(pcl_object_detection::PCLParameterConfig& config, uint32_t level);
-            bool callbackSubscriberSwitch( sobit_common_msg::RunCtrl::Request &req, sobit_common_msg::RunCtrl::Response &res  );
+            bool callbackSubscriberSwitch( pcl_object_detection::RunCtrl::Request &req, pcl_object_detection::RunCtrl::Response &res  );
             void callbackCloud( const sensor_msgs::PointCloud2ConstPtr& cloud_msg );
 
         public:
@@ -78,7 +78,7 @@ void pcl_object_detection::PlaceablePoseDetection::callbackDynamicReconfigure(pc
     return;
 }
 
-bool pcl_object_detection::PlaceablePoseDetection::callbackSubscriberSwitch( sobit_common_msg::RunCtrl::Request &req, sobit_common_msg::RunCtrl::Response &res ) {
+bool pcl_object_detection::PlaceablePoseDetection::callbackSubscriberSwitch( pcl_object_detection::RunCtrl::Request &req, pcl_object_detection::RunCtrl::Response &res ) {
     if ( req.request ) {
         NODELET_INFO ("[ PlaceablePoseDetection ] Turn on the PlaceablePoseDetection" );
         sub_point_cloud_ = nh_.subscribe(pointcloud_topic_, 10, &PlaceablePoseDetection::callbackCloud, this); //オン（再定義）
@@ -94,7 +94,7 @@ void pcl_object_detection::PlaceablePoseDetection::callbackCloud(const sensor_ms
     PointCloud::Ptr cloud (new PointCloud());
     PointCloud::Ptr cloud_plane (new PointCloud());
     PointCloud::Ptr cloud_plane_hull (new PointCloud());
-    sobit_common_msg::ObjectPoseArrayPtr pose_array (new sobit_common_msg::ObjectPoseArray);
+    pcl_object_detection::ObjectPoseArrayPtr pose_array (new pcl_object_detection::ObjectPoseArray);
     pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
     pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
     std::vector<pcl::PointIndices> cluster_indices;
@@ -176,11 +176,11 @@ void pcl_object_detection::PlaceablePoseDetection::callbackCloud(const sensor_ms
     }
 
     if ( min_pot != 1.0 ) {
-        sobit_common_msg::ObjectPose pose;
+        pcl_object_detection::ObjectPose pose;
         pose.Class = "placeable_point";
         pose.pose.position = placeable_point;
         if ( use_sobit_pro_ ) {
-            sobit_common_msg::ObjectPose pose_pro;
+            pcl_object_detection::ObjectPose pose_pro;
             pose_pro.pose.position.x = pose.pose.position.x + 0.221;
             pose_pro.pose.position.y = pose.pose.position.y - 0.221;
             pose_pro.pose.position.z = pose.pose.position.z;
@@ -235,7 +235,7 @@ void pcl_object_detection::PlaceablePoseDetection::onInit() {
 
     pub_cloud_detection_range_ = nh_.advertise<PointCloud>("cloud_detection_range", 1);
     pub_cloud_object_ = nh_.advertise<PointCloud>("cloud_object", 1);
-    pub_pose_array_ = nh_.advertise<sobit_common_msg::ObjectPoseArray>("object_poses", 1);
+    pub_pose_array_ = nh_.advertise<pcl_object_detection::ObjectPoseArray>("object_poses", 1);
 
 }
 

@@ -6,9 +6,9 @@
 #include <pcl_object_detection/ObjectDetectionParameterConfig.h>
 #include <pcl_object_detection/DetectionModeCtr.h>
 
-#include <sobit_common_msg/RunCtrl.h>
-#include <sobit_common_msg/ObjectPose.h>
-#include <sobit_common_msg/ObjectPoseArray.h>
+#include <pcl_object_detection/RunCtrl.h>
+#include <pcl_object_detection/ObjectPose.h>
+#include <pcl_object_detection/ObjectPoseArray.h>
 
 #include <tf2_ros/transform_broadcaster.h>
 #include <std_msgs/Bool.h>
@@ -39,7 +39,7 @@ namespace pcl_object_detection {
             dynamic_reconfigure::Server<pcl_object_detection::ObjectDetectionParameterConfig>::CallbackType f_;
 
             void callbackDynamicReconfigure(pcl_object_detection::ObjectDetectionParameterConfig& config, uint32_t level);
-            bool callbackSubscriberSwitch( sobit_common_msg::RunCtrl::Request &req, sobit_common_msg::RunCtrl::Response &res  );
+            bool callbackSubscriberSwitch( pcl_object_detection::RunCtrl::Request &req, pcl_object_detection::RunCtrl::Response &res  );
             bool detctionModeSwitchCb ( pcl_object_detection::DetectionModeCtr::Request &req, pcl_object_detection::DetectionModeCtr::Response &res );
 
         public:
@@ -49,7 +49,7 @@ namespace pcl_object_detection {
 }
 
 void pcl_object_detection::DetectionManager::callbackDynamicReconfigure(pcl_object_detection::ObjectDetectionParameterConfig& config, uint32_t level) {
-    sobit_common_msg::RunCtrl table, floor, shelf, placeable;
+    pcl_object_detection::RunCtrl table, floor, shelf, placeable;
     table.request.request = false;
     floor.request.request = false;
     shelf.request.request = false;
@@ -79,7 +79,7 @@ void pcl_object_detection::DetectionManager::callbackDynamicReconfigure(pcl_obje
 }
 
 bool pcl_object_detection::DetectionManager::detctionModeSwitchCb ( pcl_object_detection::DetectionModeCtr::Request &req, pcl_object_detection::DetectionModeCtr::Response &res ) {
-    sobit_common_msg::RunCtrl table, floor, shelf, placeable;
+    pcl_object_detection::RunCtrl table, floor, shelf, placeable;
     table.request.request = false;
     floor.request.request = false;
     shelf.request.request = false;
@@ -113,8 +113,8 @@ bool pcl_object_detection::DetectionManager::detctionModeSwitchCb ( pcl_object_d
 }
 
 
-bool pcl_object_detection::DetectionManager::callbackSubscriberSwitch( sobit_common_msg::RunCtrl::Request &req, sobit_common_msg::RunCtrl::Response &res ) {
-    sobit_common_msg::RunCtrl table, floor, shelf, placeable;
+bool pcl_object_detection::DetectionManager::callbackSubscriberSwitch( pcl_object_detection::RunCtrl::Request &req, pcl_object_detection::RunCtrl::Response &res ) {
+    pcl_object_detection::RunCtrl table, floor, shelf, placeable;
     table.request.request = false;
     floor.request.request = false;
     shelf.request.request = false;
@@ -154,10 +154,10 @@ void pcl_object_detection::DetectionManager::onInit() {
 
     srv_subscriber_switch_ = nh_.advertiseService( "run_ctr", &DetectionManager::callbackSubscriberSwitch, this);
     srv_detection_mode_switch_ = nh_.advertiseService( "detection_mode_ctr", &DetectionManager::detctionModeSwitchCb, this);
-    client_table_ = nh_.serviceClient<sobit_common_msg::RunCtrl>("object_detection_table_run_ctr");
-    client_floor_ = nh_.serviceClient<sobit_common_msg::RunCtrl>("object_detection_floor_run_ctr");
-    client_shelf_ = nh_.serviceClient<sobit_common_msg::RunCtrl>("object_detection_shelf_run_ctr");
-    client_placeable_ = nh_.serviceClient<sobit_common_msg::RunCtrl>("placeable_detection_run_ctr");
+    client_table_ = nh_.serviceClient<pcl_object_detection::RunCtrl>("object_detection_table_run_ctr");
+    client_floor_ = nh_.serviceClient<pcl_object_detection::RunCtrl>("object_detection_floor_run_ctr");
+    client_shelf_ = nh_.serviceClient<pcl_object_detection::RunCtrl>("object_detection_shelf_run_ctr");
+    client_placeable_ = nh_.serviceClient<pcl_object_detection::RunCtrl>("placeable_detection_run_ctr");
 
     // dynamic_reconfigure :
     server_ = new dynamic_reconfigure::Server<pcl_object_detection::ObjectDetectionParameterConfig>(pnh_);

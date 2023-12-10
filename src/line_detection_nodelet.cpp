@@ -44,7 +44,7 @@ namespace pcl_object_detection {
             dynamic_reconfigure::Server<pcl_object_detection::LineDetectionParameterConfig>::CallbackType f_;
 
             void callbackDynamicReconfigure(pcl_object_detection::LineDetectionParameterConfig& config, uint32_t level);
-            bool callbackSubscriberSwitch( sobit_common_msg::RunCtrl::Request &req, sobit_common_msg::RunCtrl::Response &res  );
+            bool callbackSubscriberSwitch( pcl_object_detection::RunCtrl::Request &req, pcl_object_detection::RunCtrl::Response &res  );
             void callbackScan2D ( const sensor_msgs::LaserScanConstPtr &scan2d_msg );
             bool detectLine( pcl_object_detection::LineDetectionService::Request &req, pcl_object_detection::LineDetectionService::Response &res );
             visualization_msgs::Marker makeMakerString( const std::string string, const double x, const double y, const double z );
@@ -75,7 +75,7 @@ void pcl_object_detection::LineDetection::callbackDynamicReconfigure(pcl_object_
     return;
 }
 
-bool pcl_object_detection::LineDetection::callbackSubscriberSwitch( sobit_common_msg::RunCtrl::Request &req, sobit_common_msg::RunCtrl::Response &res ) {
+bool pcl_object_detection::LineDetection::callbackSubscriberSwitch( pcl_object_detection::RunCtrl::Request &req, pcl_object_detection::RunCtrl::Response &res ) {
     if ( req.request ) {
         NODELET_INFO ("[ ObjectDetectionFloor ] Turn on the LineDetection" );
         sub_scan_ = nh_.subscribe(scan_topic_, 10, &LineDetection::callbackScan2D, this); //オン（再定義）

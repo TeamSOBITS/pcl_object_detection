@@ -23,9 +23,9 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/surface/concave_hull.h>
 
-#include <sobit_common_msg/RunCtrl.h>
-#include <sobit_common_msg/ObjectPose.h>
-#include <sobit_common_msg/ObjectPoseArray.h>
+#include <pcl_object_detection/RunCtrl.h>
+#include <pcl_object_detection/ObjectPose.h>
+#include <pcl_object_detection/ObjectPoseArray.h>
 
 #include <tf/transform_broadcaster.h>
 
@@ -108,10 +108,10 @@ namespace pcl_object_detection {
             int principalComponentAnalysis(
                 const PointCloud::Ptr cloud,
                 const std::vector<pcl::PointIndices>& cluster_indices,
-                sobit_common_msg::ObjectPoseArrayPtr pose_array_msg,
+                pcl_object_detection::ObjectPoseArrayPtr pose_array_msg,
                 PointCloud::Ptr cloud_object,
                 const int init_object_id = 0 );
-            static bool compareDistance(sobit_common_msg::ObjectPose &a, sobit_common_msg::ObjectPose &b);
+            static bool compareDistance(pcl_object_detection::ObjectPose &a, pcl_object_detection::ObjectPose &b);
     };
 
     inline void PointCloudProcessor::setTargetFrame( const std::string& target_frame ) {
@@ -177,7 +177,7 @@ namespace pcl_object_detection {
         obj_param.y_offset = y_offset;
         obj_param.z_offset = z_offset;
     }
-    inline bool PointCloudProcessor::compareDistance(sobit_common_msg::ObjectPose &a, sobit_common_msg::ObjectPose &b) {
+    inline bool PointCloudProcessor::compareDistance(pcl_object_detection::ObjectPose &a, pcl_object_detection::ObjectPose &b) {
         double a_dist = std::hypotf( a.pose.position.x,  a.pose.position.y );
         double b_dist = std::hypotf( b.pose.position.x,  b.pose.position.y );
         return a_dist < b_dist; //近い順
