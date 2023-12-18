@@ -223,17 +223,17 @@ int PointCloudProcessor::principalComponentAnalysis(
         pcl::compute3DCentroid( *cloud, cluster, pca_centroid );
         // Ref : https://programmersought.com/article/88204491934/
         Eigen::Matrix3f covariance;
-        pcl::computeCovarianceMatrixNormalized(*cloud, pca_centroid, covariance); // 正規化された3x3共分散行列(分散共分散行列)を計算
-        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance, Eigen::ComputeEigenvectors); // 固有値と固有ベクトルを求める
-        Eigen::Matrix3f eigen_vectors_pca = eigen_solver.eigenvectors(); // 固有ベクトル
-        //Eigen::Vector3f eigen_values_pca = eigen_solver.eigenvalues();   // 固有値
+        pcl::computeCovarianceMatrixNormalized(*cloud, pca_centroid, covariance); // Computes the normalized 3x3 covariance matrix (variance-covariance matrix)
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance, Eigen::ComputeEigenvectors); // Find eigenvalues and eigenvectors
+        Eigen::Matrix3f eigen_vectors_pca = eigen_solver.eigenvectors(); // eigenvector
+        //Eigen::Vector3f eigen_values_pca = eigen_solver.eigenvalues();   // eigenvalue
 
         Eigen::Matrix4f transform(Eigen::Matrix4f::Identity());
         transform.block<3, 3>(0, 0) = eigen_vectors_pca.transpose();
         transform.block<3, 1>(0, 3) = -1.0f * (transform.block<3,3>(0,0)) * (pca_centroid.head<3>());//
 
         PointCloud::Ptr cloud_transformed(new PointCloud() );
-        pcl::transformPointCloud(*cloud, cluster, *cloud_transformed, transform); // 固有ベクトルで回転
+        pcl::transformPointCloud(*cloud, cluster, *cloud_transformed, transform); // Rotation with eigenvectors
         Eigen::Vector4f min_pt, max_pt;
         pcl::getMinMax3D( *cloud_transformed, min_pt, max_pt);
         Eigen::Vector4f cluster_size = max_pt - min_pt;

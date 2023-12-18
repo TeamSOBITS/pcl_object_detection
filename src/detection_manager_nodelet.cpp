@@ -54,7 +54,7 @@ void pcl_object_detection::DetectionManager::callbackDynamicReconfigure(pcl_obje
     floor.request.request = false;
     shelf.request.request = false;
     placeable.request.request = false;
-        //オン（再定義）
+        //On (redefined)
     if ( config.detection_mode == Mode::OFF ) {
         NODELET_INFO ("Setting a mode = OFF" );
     } else if( config.detection_mode == Mode::TABLE_MODE ) {
@@ -120,7 +120,7 @@ bool pcl_object_detection::DetectionManager::callbackSubscriberSwitch( sobits_ms
     shelf.request.request = false;
     placeable.request.request = false;
     if ( req.request ) {
-         //オン（再定義）
+         //On (redefined)
         if ( detection_mode_ == Mode::OFF ) {
             NODELET_INFO ("Setting a mode = OFF" );
         } else if( detection_mode_ == Mode::TABLE_MODE ) {

@@ -81,10 +81,10 @@ void pcl_object_detection::PlaceablePoseDetection::callbackDynamicReconfigure(pc
 bool pcl_object_detection::PlaceablePoseDetection::callbackSubscriberSwitch( sobits_msgs::RunCtrl::Request &req, sobits_msgs::RunCtrl::Response &res ) {
     if ( req.request ) {
         NODELET_INFO ("[ PlaceablePoseDetection ] Turn on the PlaceablePoseDetection" );
-        sub_point_cloud_ = nh_.subscribe(pointcloud_topic_, 10, &PlaceablePoseDetection::callbackCloud, this); //オン（再定義）
+        sub_point_cloud_ = nh_.subscribe(pointcloud_topic_, 10, &PlaceablePoseDetection::callbackCloud, this); //On (redefined)
     } else {
         NODELET_INFO ("[ PlaceablePoseDetection ] Turn off the PlaceablePoseDetection" );
-        sub_point_cloud_.shutdown();//オフ
+        sub_point_cloud_.shutdown();//off
     }
     res.response = true;
     return true;
@@ -109,12 +109,12 @@ void pcl_object_detection::PlaceablePoseDetection::callbackCloud(const sensor_ms
     pcp_->extractIndices( cloud, cloud, inliers, true );
     pcp_->setVoxelGridParameter( 0.01 );
     pcp_->voxelGrid( cloud_plane, cloud_plane );
-    // 平面より下の物体点群を除去
+    // Remove object point clouds below the plane
     Eigen::Vector4f centroid,  min_pt, max_pt;
     pcl::compute3DCentroid( *cloud_plane, centroid );
     pcp_->setPassThroughParameters( "z", centroid.z(), centroid.z()+0.4 );
     pcp_->passThrough( cloud, cloud );
-    // 平面より奥の物体を削除
+    // Delete objects deeper than the plane
     pcl::getMinMax3D( *cloud_plane, min_pt, max_pt);
     if ( use_sobit_pro_ ) {
         pcp_->setPassThroughParameters( "y", 0.0, max_pt.y() );
@@ -124,16 +124,16 @@ void pcl_object_detection::PlaceablePoseDetection::callbackCloud(const sensor_ms
         pcp_->passThrough( cloud, cloud );
     }
 
-    // 物体の数を確認
+    // Check the number of objects
     pcp_->euclideanClusterExtraction ( cloud, &cluster_indices );
     int object_num = cluster_indices.size();
 
-    // 平面の端を取得し、物体点群を追加
+    // Obtain plane edges and add object point cloud
     pcp_->voxelGrid( cloud, cloud );
     pcp_->ConcaveHull( cloud_plane, cloud_plane_hull );
     *cloud = *cloud + *cloud_plane_hull;
 
-    // 配置位置の推定範囲を決定
+    // Determine the estimated range of placement locations
     if ( use_sobit_pro_ ) {
         pcp_->setPassThroughParameters( "x", centroid.x() - 0.35, centroid.x() + 0.35 );
         pcp_->passThrough( cloud_plane, cloud_plane );
@@ -150,7 +150,7 @@ void pcl_object_detection::PlaceablePoseDetection::callbackCloud(const sensor_ms
     geometry_msgs::Point placeable_point;
     double min_pot = 1.0, potential = 0.0;
 
-    // 配置位置推定
+    // Location Estimation
     geometry_msgs::Point obs_pt;
     double placeable_search_interval = placeable_search_interval_;
     double obstacle_tolerance = obstacle_tolerance_;

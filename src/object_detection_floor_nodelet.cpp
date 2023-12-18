@@ -63,10 +63,10 @@ void pcl_object_detection::ObjectDetectionFloor::callbackDynamicReconfigure(pcl_
 bool pcl_object_detection::ObjectDetectionFloor::callbackSubscriberSwitch( sobits_msgs::RunCtrl::Request &req, sobits_msgs::RunCtrl::Response &res ) {
     if ( req.request ) {
         NODELET_INFO ("[ ObjectDetectionFloor ] Turn on the ObjectDetectionFloor" );
-        sub_point_cloud_ = nh_.subscribe(pointcloud_topic_, 10, &ObjectDetectionFloor::callbackCloud, this); //オン（再定義）
+        sub_point_cloud_ = nh_.subscribe(pointcloud_topic_, 10, &ObjectDetectionFloor::callbackCloud, this); //On (redefined)
     } else {
         NODELET_INFO ("[ ObjectDetectionFloor ] Turn off the ObjectDetectionFloor" );
-        sub_point_cloud_.shutdown();//オフ
+        sub_point_cloud_.shutdown();//off
     }
     res.response = true;
     return true;

@@ -1,15 +1,15 @@
-/* 点群データを受け取る */
+/* Receive point cloud data */
 
-/* ROSの基本ヘッダ */
+/* ROS Basic Header */
 #include <ros/ros.h>
-/* 入出力関連ヘッダ */
+/* I/O Related Headers */
 #include <iostream>
 /* tf */
-#include <tf/transform_listener.h>          //tfリスナーを定義し、座標フレームを処理する
+#include <tf/transform_listener.h>          //Define a tf listener to process coordinate frames
 /* Point Cloud Library */
-#include <pcl_ros/point_cloud.h>            //pcl::PointCloud<T>をROSメッセージとしてPublishおよびSubscribeできる
-#include <pcl_ros/transforms.h>             //ポイントクライドを任意の座標フレームに変換する
-#include <pcl/point_types.h>                //PCLで実装されたすべてのPointTポイントタイプ構造体を定義する
+#include <pcl_ros/point_cloud.h>            //Can Publish and Subscribe to pcl::PointCloud<T> as ROS messages
+#include <pcl_ros/transforms.h>             //Convert point clyde to arbitrary coordinate frame
+#include <pcl/point_types.h>                //Defines all PointT point type structures implemented in PCL
 #include <pcl/io/io.h>
 #include <pcl/io/pcd_io.h>
 /* sensor_msgs */
@@ -47,14 +47,14 @@ class savePCLFileNode {
                     }
                 }
                 ROS_INFO("width: %u, height: %u", cloud_transformed_->width, cloud_transformed_->height);
-                // 作成したPointCloudをPCD形式で保存する
+                // Save the created PointCloud in PCD format
                 std::string path = save_path_+save_file_+"_ascii.pcd";
                 ROS_INFO("savePCDFileASCII = '%s'", path.c_str());
-                pcl::io::savePCDFileASCII<pcl::PointXYZ> ( path, *cloud_transformed_); // テキスト形式で保存する
+                pcl::io::savePCDFileASCII<pcl::PointXYZ> ( path, *cloud_transformed_); // Save in text format
 
                 path = save_path_+save_file_+"_binary.pcd";
                 ROS_INFO("savePCDFileBinary = '%s'", path.c_str());
-                pcl::io::savePCDFileBinary<pcl::PointXYZ> (path, *cloud_transformed_);  // バイナリ形式で保存する
+                pcl::io::savePCDFileBinary<pcl::PointXYZ> (path, *cloud_transformed_);  // Save in binary format
             } catch (std::exception &e) {
                 ROS_ERROR("%s", e.what());
             }

@@ -64,10 +64,10 @@ void pcl_object_detection::LineDetection::callbackDynamicReconfigure(pcl_object_
 
     if ( config.run_ctr ) {
         NODELET_INFO ("[ ObjectDetectionFloor ] Turn on the LineDetection" );
-        sub_scan_ = nh_.subscribe(scan_topic_, 10, &LineDetection::callbackScan2D, this); //オン（再定義）
+        sub_scan_ = nh_.subscribe(scan_topic_, 10, &LineDetection::callbackScan2D, this); //On (redefined)
     } else {
         NODELET_INFO ("[ LineDetection ] Turn off the LineDetection" );
-        sub_scan_.shutdown();//オフ
+        sub_scan_.shutdown();//off
     }
     pcp_->setTargetFrame( config.base_frame_name );
     pcp_->setPassThroughParameters( "y", config.passthrough_y_min, config.passthrough_y_max );
@@ -78,10 +78,10 @@ void pcl_object_detection::LineDetection::callbackDynamicReconfigure(pcl_object_
 bool pcl_object_detection::LineDetection::callbackSubscriberSwitch( sobits_msgs::RunCtrl::Request &req, sobits_msgs::RunCtrl::Response &res ) {
     if ( req.request ) {
         NODELET_INFO ("[ ObjectDetectionFloor ] Turn on the LineDetection" );
-        sub_scan_ = nh_.subscribe(scan_topic_, 10, &LineDetection::callbackScan2D, this); //オン（再定義）
+        sub_scan_ = nh_.subscribe(scan_topic_, 10, &LineDetection::callbackScan2D, this); //On (redefined)
     } else {
         NODELET_INFO ("[ LineDetection ] Turn off the LineDetection" );
-        sub_scan_.shutdown();//オフ
+        sub_scan_.shutdown();//off
     }
     res.response = true;
     return true;

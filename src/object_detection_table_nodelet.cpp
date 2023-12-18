@@ -68,10 +68,10 @@ void pcl_object_detection::ObjectDetectionTable::callbackDynamicReconfigure(pcl_
 bool pcl_object_detection::ObjectDetectionTable::callbackSubscriberSwitch( sobits_msgs::RunCtrl::Request &req, sobits_msgs::RunCtrl::Response &res ) {
     if ( req.request ) {
         NODELET_INFO ("[ ObjectDetectionTable ] Turn on the ObjectDetectionTable" );
-        sub_point_cloud_ = nh_.subscribe(pointcloud_topic_, 10, &ObjectDetectionTable::callbackCloud, this); //オン（再定義）
+        sub_point_cloud_ = nh_.subscribe(pointcloud_topic_, 10, &ObjectDetectionTable::callbackCloud, this); //On (redefined)
     } else {
         NODELET_INFO ("[ ObjectDetectionTable ] Turn off the ObjectDetectionTable" );
-        sub_point_cloud_.shutdown();//オフ
+        sub_point_cloud_.shutdown();//off
     }
     res.response = true;
     return true;
