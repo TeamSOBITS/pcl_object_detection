@@ -211,7 +211,7 @@ bool PointCloudProcessor::ConcaveHull( const PointCloud::Ptr input_cloud, PointC
 int PointCloudProcessor::principalComponentAnalysis(
     const PointCloud::Ptr cloud,
     const std::vector<pcl::PointIndices>& cluster_indices,
-    pcl_object_detection::ObjectPoseArrayPtr pose_array_msg,
+    sobits_msgs::ObjectPoseArrayPtr pose_array_msg,
     PointCloud::Ptr cloud_object,
     const int init_object_id )
 {
@@ -246,7 +246,7 @@ int PointCloudProcessor::principalComponentAnalysis(
         // double pitch = std::atan2( eigen_vectors_pca(2, 0), eigen_vectors_pca(0, 0) );
         double yaw = std::atan2( eigen_vectors_pca(1, 0), eigen_vectors_pca(0, 0) ) + M_PI;
 
-        pcl_object_detection::ObjectPose pose;
+        sobits_msgs::ObjectPose pose;
         pose.pose.position.x = pca_centroid(0)+obj_size.x_offset;
         pose.pose.position.y = pca_centroid(1)+obj_size.y_offset;
         pose.pose.position.z = pca_centroid(2)+obj_size.z_offset;

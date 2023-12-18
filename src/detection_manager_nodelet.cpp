@@ -6,9 +6,9 @@
 #include <pcl_object_detection/ObjectDetectionParameterConfig.h>
 #include <pcl_object_detection/DetectionModeCtr.h>
 
-#include <pcl_object_detection/RunCtrl.h>
-#include <pcl_object_detection/ObjectPose.h>
-#include <pcl_object_detection/ObjectPoseArray.h>
+#include <sobits_msgs/RunCtrl.h>
+#include <sobits_msgs/ObjectPose.h>
+#include <sobits_msgs/ObjectPoseArray.h>
 
 #include <tf2_ros/transform_broadcaster.h>
 #include <std_msgs/Bool.h>
@@ -39,7 +39,7 @@ namespace pcl_object_detection {
             dynamic_reconfigure::Server<pcl_object_detection::ObjectDetectionParameterConfig>::CallbackType f_;
 
             void callbackDynamicReconfigure(pcl_object_detection::ObjectDetectionParameterConfig& config, uint32_t level);
-            bool callbackSubscriberSwitch( pcl_object_detection::RunCtrl::Request &req, pcl_object_detection::RunCtrl::Response &res  );
+            bool callbackSubscriberSwitch( sobits_msgs::RunCtrl::Request &req, sobits_msgs::RunCtrl::Response &res  );
             bool detctionModeSwitchCb ( pcl_object_detection::DetectionModeCtr::Request &req, pcl_object_detection::DetectionModeCtr::Response &res );
 
         public:
@@ -49,7 +49,7 @@ namespace pcl_object_detection {
 }
 
 void pcl_object_detection::DetectionManager::callbackDynamicReconfigure(pcl_object_detection::ObjectDetectionParameterConfig& config, uint32_t level) {
-    pcl_object_detection::RunCtrl table, floor, shelf, placeable;
+    sobits_msgs::RunCtrl table, floor, shelf, placeable;
     table.request.request = false;
     floor.request.request = false;
     shelf.request.request = false;
@@ -79,7 +79,7 @@ void pcl_object_detection::DetectionManager::callbackDynamicReconfigure(pcl_obje
 }
 
 bool pcl_object_detection::DetectionManager::detctionModeSwitchCb ( pcl_object_detection::DetectionModeCtr::Request &req, pcl_object_detection::DetectionModeCtr::Response &res ) {
-    pcl_object_detection::RunCtrl table, floor, shelf, placeable;
+    sobits_msgs::RunCtrl table, floor, shelf, placeable;
     table.request.request = false;
     floor.request.request = false;
     shelf.request.request = false;
@@ -113,8 +113,8 @@ bool pcl_object_detection::DetectionManager::detctionModeSwitchCb ( pcl_object_d
 }
 
 
-bool pcl_object_detection::DetectionManager::callbackSubscriberSwitch( pcl_object_detection::RunCtrl::Request &req, pcl_object_detection::RunCtrl::Response &res ) {
-    pcl_object_detection::RunCtrl table, floor, shelf, placeable;
+bool pcl_object_detection::DetectionManager::callbackSubscriberSwitch( sobits_msgs::RunCtrl::Request &req, sobits_msgs::RunCtrl::Response &res ) {
+    sobits_msgs::RunCtrl table, floor, shelf, placeable;
     table.request.request = false;
     floor.request.request = false;
     shelf.request.request = false;
@@ -154,10 +154,10 @@ void pcl_object_detection::DetectionManager::onInit() {
 
     srv_subscriber_switch_ = nh_.advertiseService( "run_ctr", &DetectionManager::callbackSubscriberSwitch, this);
     srv_detection_mode_switch_ = nh_.advertiseService( "detection_mode_ctr", &DetectionManager::detctionModeSwitchCb, this);
-    client_table_ = nh_.serviceClient<pcl_object_detection::RunCtrl>("object_detection_table_run_ctr");
-    client_floor_ = nh_.serviceClient<pcl_object_detection::RunCtrl>("object_detection_floor_run_ctr");
-    client_shelf_ = nh_.serviceClient<pcl_object_detection::RunCtrl>("object_detection_shelf_run_ctr");
-    client_placeable_ = nh_.serviceClient<pcl_object_detection::RunCtrl>("placeable_detection_run_ctr");
+    client_table_ = nh_.serviceClient<sobits_msgs::RunCtrl>("object_detection_table_run_ctr");
+    client_floor_ = nh_.serviceClient<sobits_msgs::RunCtrl>("object_detection_floor_run_ctr");
+    client_shelf_ = nh_.serviceClient<sobits_msgs::RunCtrl>("object_detection_shelf_run_ctr");
+    client_placeable_ = nh_.serviceClient<sobits_msgs::RunCtrl>("placeable_detection_run_ctr");
 
     // dynamic_reconfigure :
     server_ = new dynamic_reconfigure::Server<pcl_object_detection::ObjectDetectionParameterConfig>(pnh_);
