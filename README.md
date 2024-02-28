@@ -41,7 +41,7 @@
 <!-- [![Product Name Screen Shot][product-screenshot]](https://example.com) -->
 
 - Point Cloud Libraryを用いたルールベース物体検出パッケージ
-- Lidar情報から直線を
+- Lidar情報から直線を検出
 
 <p align="right">(<a href="#readme-top">上に戻る</a>)</p>
 
@@ -173,7 +173,6 @@ $ roslaunch pcl_object_detection demo_line.launch
 * []()
 
 <p align="right">(<a href="#readme-top">上に戻る</a>)</p>
-
 
 
 <!-- MARKDOWN LINKS & IMAGES -->
