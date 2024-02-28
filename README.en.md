@@ -182,4 +182,4 @@ Please refer to the rst.file for the change log.
 [issues-shield]: https://img.shields.io/github/issues/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
 [issues-url]: https://github.com/TeamSOBITS/pcl_object_detection/issues
 [license-shield]: https://img.shields.io/github/license/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
-[license-url]: LICENSE
+[license-url]: https://github.com/TeamSOBITS/pcl_object_detection/blob/master/LICENSE.txt

@@ -43,7 +43,7 @@
 - Point Cloud Libraryを用いたルールベース物体検出パッケージ
 - Lidar情報から直線を検出
 
-<p align="right">(<a href="#readme-top">上に戻る</a>)</p>
+<p align="right">(<a href="#readme-top">Topに戻る</a>)</p>
 
 
 
@@ -76,6 +76,8 @@
    $ roscd
    $ catkin_make
    ```
+
+<p align="right">(<a href="#readme-top">Topに戻る</a>)</p>
 
 <!-- 実行・操作方法 -->
 ## 実行・操作方法
@@ -172,8 +174,7 @@ $ roslaunch pcl_object_detection demo_line.launch
 * []()
 * []()
 
-<p align="right">(<a href="#readme-top">上に戻る</a>)</p>
-
+<p align="right">(<a href="#readme-top">Topに戻る</a>)</p>
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
@@ -186,4 +187,4 @@ $ roslaunch pcl_object_detection demo_line.launch
 [issues-shield]: https://img.shields.io/github/issues/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
 [issues-url]: https://github.com/TeamSOBITS/pcl_object_detection/issues
 [license-shield]: https://img.shields.io/github/license/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
-[license-url]: LICENSE
+[license-url]: https://github.com/TeamSOBITS/pcl_object_detection/blob/master/LICENSE.txt
