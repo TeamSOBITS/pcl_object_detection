@@ -1,12 +1,12 @@
 <a name="readme-top"></a>
 
-[JP](template_readme.md) | [EN](template_readme_en.md)
+[JP](README.md) | [EN](README.en.md)
 
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
-<!-- [![MIT License][license-shield]][license-url] -->
+[![MIT License][license-shield]][license-url]
 
 # PCL Object Detection
 
