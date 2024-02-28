@@ -6,7 +6,7 @@
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]][license-url]
+[![License][license-shield]][license-url]
 
 # PCL Object Detection
 
@@ -152,15 +152,13 @@ $ roslaunch pcl_object_detection demo_line.launch
 
 <!-- Milestones -->
 ## Milestones
-<!-- Milestones -->
-## Milestones
 
 - [ ] Comprehensive documentation
 - [ ] Open Source Software (OSS) release
   - [ ] Migration from tf to tf2
   - [ ] Update from custom message types to public messages
 
-To check current bugs or request new features, please visit the [Issue page](https://github.com/github_username/repo_name/issues).
+To check current bugs or request new features, please visit the [Issue page](https://github.com/TeamSOBITS/pcl_object_detection/issues).
 
 <p align="right">(<a href="#readme-top">Back to Top</a>)</p>
 
