@@ -158,7 +158,7 @@ $ roslaunch pcl_object_detection demo_line.launch
   - [ ] tfからtf2への移行
   - [ ] 独自のメッセージ型から公開メッセージへ更新
 
-現時点のバッグや新規機能の依頼を確認するために[Issueページ](https://github.com/github_username/repo_name/issues) をご覧ください．
+現時点のバッグや新規機能の依頼を確認するために[Issueページ](https://github.com/TeamSOBITS/pcl_object_detection/issues) をご覧ください．
 
 <p align="right">(<a href="#readme-top">上に</a>)</p>
 
@@ -177,13 +177,13 @@ $ roslaunch pcl_object_detection demo_line.launch
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-[contributors-shield]: https://img.shields.io/github/contributors/github_username/repo_name.svg?style=for-the-badge
-[contributors-url]: https://github.com/github_username/repo_name/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/github_username/repo_name.svg?style=for-the-badge
-[forks-url]: https://github.com/github_username/repo_name/network/members
-[stars-shield]: https://img.shields.io/github/stars/github_username/repo_name.svg?style=for-the-badge
-[stars-url]: https://github.com/github_username/repo_name/stargazers
-[issues-shield]: https://img.shields.io/github/issues/github_username/repo_name.svg?style=for-the-badge
-[issues-url]: https://github.com/github_username/repo_name/issues
-<!-- [license-shield]: https://img.shields.io/github/license/github_username/repo_name.svg?style=for-the-badge
-[license-url]: https://github.com/github_username/repo_name/blob/master/LICENSE.txt -->
+[contributors-shield]: https://img.shields.io/github/contributors/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
+[contributors-url]: https://github.com/TeamSOBITS/pcl_object_detection/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
+[forks-url]: https://github.com/TeamSOBITS/pcl_object_detection/network/members
+[stars-shield]: https://img.shields.io/github/stars/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
+[stars-url]: https://github.com/TeamSOBITS/pcl_object_detection/stargazers
+[issues-shield]: https://img.shields.io/github/issues/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
+[issues-url]: https://github.com/TeamSOBITS/pcl_object_detection/issues
+[license-shield]: https://img.shields.io/github/license/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
+[license-url]: LICENSE
