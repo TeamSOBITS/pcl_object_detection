@@ -19,7 +19,7 @@
 - 各検出モードはサービス通信によって変更可能
 - 検出モード
 
-|番号 | モード名 |意味 | パラメータファイル |
+| Number | Mode | Meaning | Parameter File |
 | --- | --- | --- | --- |
 | 0 | OFF                | 検出オフ(入力点群を受け取らない) | - |
 | 1 | TABLE_MODE         | 机上の物体を検出する | [object_detection_table_param.yaml](../../param/object_detection_table_param.yaml) |
