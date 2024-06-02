@@ -210,13 +210,13 @@ $ roslaunch pcl_object_detection demo_line.launch
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-[contributors-shield]: https://img.shields.io/github/contributors/TeamSOBITS/ar_track_alvar.svg?style=for-the-badge
-[contributors-url]: https://github.com/TeamSOBITS/ar_track_alvar/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/TeamSOBITS/ar_track_alvar.svg?style=for-the-badge
-[forks-url]: https://github.com/TeamSOBITS/ar_track_alvar/network/members
-[stars-shield]: https://img.shields.io/github/stars/TeamSOBITS/ar_track_alvar.svg?style=for-the-badge
-[stars-url]: https://github.com/TeamSOBITS/ar_track_alvar/stargazers
-[issues-shield]: https://img.shields.io/github/issues/TeamSOBITS/ar_track_alvar.svg?style=for-the-badge
-[issues-url]: https://github.com/TeamSOBITS/ar_track_alvar/issues
-[license-shield]: https://img.shields.io/github/license/TeamSOBITS/ar_track_alvar.svg?style=for-the-badge
+[contributors-shield]: https://img.shields.io/github/contributors/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
+[contributors-url]: https://github.com/TeamSOBITS/pcl_object_detection/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
+[forks-url]: https://github.com/TeamSOBITS/pcl_object_detection/network/members
+[stars-shield]: https://img.shields.io/github/stars/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
+[stars-url]: https://github.com/TeamSOBITS/pcl_object_detection/stargazers
+[issues-shield]: https://img.shields.io/github/issues/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
+[issues-url]: https://github.com/TeamSOBITS/pcl_object_detection/issues
+[license-shield]: https://img.shields.io/github/license/TeamSOBITS/pcl_object_detection.svg?style=for-the-badge
 [license-url]: LICENSE
