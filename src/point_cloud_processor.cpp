@@ -1,8 +1,11 @@
 #include <pcl_object_detection/point_cloud_processor.hpp>
 
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
 using namespace pcl_object_detection;
 
-PointCloudProcessor::PointCloudProcessor() {
+PointCloudProcessor::PointCloudProcessor():tfBuffer_(), tfListener_(tfBuffer_) {
     setPassThroughParameters( 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 );
     setPassThroughParameters( "z", 0.1, 1.0);
     setVoxelGridParameter( 0.01 );
@@ -18,10 +21,10 @@ bool PointCloudProcessor::transformFramePointCloud ( const sensor_msgs::PointClo
     pcl::fromROSMsg<PointT>( *input_cloud, cloud_src );
     if (target_frame_.empty() == false ){
         try {
-            tf_listener_.waitForTransform(target_frame_, cloud_src.header.frame_id, ros::Time(0), ros::Duration(1.0));
-            pcl_ros::transformPointCloud(target_frame_, ros::Time(0), cloud_src, cloud_src.header.frame_id,  *output_cloud, tf_listener_);
+            tfBuffer_.canTransform(target_frame_, cloud_src.header.frame_id, ros::Time(0), ros::Duration(1.0));
+            pcl_ros::transformPointCloud(target_frame_, ros::Time(0), cloud_src, cloud_src.header.frame_id,  *output_cloud, tfBuffer_);
             output_cloud->header.frame_id = target_frame_;
-        } catch (const tf::TransformException& ex) {
+        } catch (const tf2::TransformException& ex) {
             ROS_ERROR("%s", ex.what());
             return false;
         }
@@ -31,8 +34,8 @@ bool PointCloudProcessor::transformFramePointCloud ( const sensor_msgs::PointClo
 bool PointCloudProcessor::transformFrameScan2D2PointCloud ( const sensor_msgs::LaserScanConstPtr &input_scan2d, PointCloud::Ptr output_cloud ) {
     sensor_msgs::PointCloud2Ptr cloud ( new sensor_msgs::PointCloud2 );
     if (target_frame_.empty() == false ) {
-        tf_listener_.waitForTransform(target_frame_, input_scan2d->header.frame_id, input_scan2d->header.stamp, ros::Duration(5.0));
-        projector_.transformLaserScanToPointCloud(target_frame_, *input_scan2d, *cloud, tf_listener_);
+        tfBuffer_.canTransform(target_frame_, input_scan2d->header.frame_id, input_scan2d->header.stamp, ros::Duration(5.0));
+        projector_.transformLaserScanToPointCloud(target_frame_, *input_scan2d, *cloud, tfBuffer_);
         pcl::fromROSMsg<PointT>(*cloud, *output_cloud);
         output_cloud->header.frame_id = target_frame_;
     } else ROS_ERROR("Please set the target frame.");
@@ -45,10 +48,10 @@ geometry_msgs::Point PointCloudProcessor::transformPoint ( std::string org_frame
     pt.header.frame_id = org_frame;
     pt.header.stamp = ros::Time(0);
     pt.point = point;
-    if ( tf_listener_.frameExists( target_frame ) ) {
+    if ( tfBuffer_._frameExists( target_frame ) ) {
         try {
-            tf_listener_.transformPoint( target_frame, pt, pt_transformed );
-        } catch ( const tf::TransformException& ex ) {
+            tfBuffer_.transform(pt, pt_transformed, target_frame);
+        } catch ( const tf2::TransformException& ex ) {
             ROS_ERROR( "%s",ex.what( ) );
         }
     } else {
@@ -170,7 +173,7 @@ bool PointCloudProcessor::radiusSearch ( PointCloud::Ptr input_cloud, pcl::Point
     }
 }
 
-bool PointCloudProcessor::nearestKSearch( PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::Point& search_pt, const int K ) { 
+bool PointCloudProcessor::nearestKSearch( PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::Point& search_pt, const int K ) {
     try{
         bool is_match = false;
         PointT searchPoint;
@@ -208,7 +211,7 @@ bool PointCloudProcessor::ConcaveHull( const PointCloud::Ptr input_cloud, PointC
 int PointCloudProcessor::principalComponentAnalysis(
     const PointCloud::Ptr cloud,
     const std::vector<pcl::PointIndices>& cluster_indices,
-    sobit_common_msg::ObjectPoseArrayPtr pose_array_msg,
+    sobits_msgs::ObjectPoseArrayPtr pose_array_msg,
     PointCloud::Ptr cloud_object,
     const int init_object_id )
 {
@@ -220,17 +223,17 @@ int PointCloudProcessor::principalComponentAnalysis(
         pcl::compute3DCentroid( *cloud, cluster, pca_centroid );
         // Ref : https://programmersought.com/article/88204491934/
         Eigen::Matrix3f covariance;
-        pcl::computeCovarianceMatrixNormalized(*cloud, pca_centroid, covariance); // 正規化された3x3共分散行列(分散共分散行列)を計算
-        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance, Eigen::ComputeEigenvectors); // 固有値と固有ベクトルを求める
-        Eigen::Matrix3f eigen_vectors_pca = eigen_solver.eigenvectors(); // 固有ベクトル
-        //Eigen::Vector3f eigen_values_pca = eigen_solver.eigenvalues();   // 固有値
+        pcl::computeCovarianceMatrixNormalized(*cloud, pca_centroid, covariance); // Computes the normalized 3x3 covariance matrix (variance-covariance matrix)
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance, Eigen::ComputeEigenvectors); // Find eigenvalues and eigenvectors
+        Eigen::Matrix3f eigen_vectors_pca = eigen_solver.eigenvectors(); // eigenvector
+        //Eigen::Vector3f eigen_values_pca = eigen_solver.eigenvalues();   // eigenvalue
 
         Eigen::Matrix4f transform(Eigen::Matrix4f::Identity());
         transform.block<3, 3>(0, 0) = eigen_vectors_pca.transpose();
         transform.block<3, 1>(0, 3) = -1.0f * (transform.block<3,3>(0,0)) * (pca_centroid.head<3>());//
 
         PointCloud::Ptr cloud_transformed(new PointCloud() );
-        pcl::transformPointCloud(*cloud, cluster, *cloud_transformed, transform); // 固有ベクトルで回転
+        pcl::transformPointCloud(*cloud, cluster, *cloud_transformed, transform); // Rotation with eigenvectors
         Eigen::Vector4f min_pt, max_pt;
         pcl::getMinMax3D( *cloud_transformed, min_pt, max_pt);
         Eigen::Vector4f cluster_size = max_pt - min_pt;
@@ -243,7 +246,7 @@ int PointCloudProcessor::principalComponentAnalysis(
         // double pitch = std::atan2( eigen_vectors_pca(2, 0), eigen_vectors_pca(0, 0) );
         double yaw = std::atan2( eigen_vectors_pca(1, 0), eigen_vectors_pca(0, 0) ) + M_PI;
 
-        sobit_common_msg::ObjectPose pose;
+        sobits_msgs::ObjectPose pose;
         pose.pose.position.x = pca_centroid(0)+obj_size.x_offset;
         pose.pose.position.y = pca_centroid(1)+obj_size.y_offset;
         pose.pose.position.z = pca_centroid(2)+obj_size.z_offset;
@@ -260,12 +263,21 @@ int PointCloudProcessor::principalComponentAnalysis(
         pose.Class = "object_" + std::to_string(object_id);
         pose.detect_id = object_id;
         if ( need_tf ) {
-            tf::Transform tf_transform;
-            tf_transform.setOrigin( tf::Vector3( pose.pose.position.x, pose.pose.position.y, pose.pose.position.z ) );
-            tf::Quaternion quat_tf;
-            quaternionMsgToTF(pose.pose.orientation , quat_tf);
+            tf2::Transform tf_transform;
+            tf_transform.setOrigin( tf2::Vector3( pose.pose.position.x, pose.pose.position.y, pose.pose.position.z ) );
+
+            tf2::Quaternion quat_tf;
+            fromMsg(pose.pose.orientation, quat_tf);
+            // quaternionMsgToTF(pose.pose.orientation , quat_tf);
             tf_transform.setRotation( quat_tf );
-            broadcaster_.sendTransform( tf::StampedTransform ( tf_transform, ros::Time::now(), target_frame_, pose.Class ));
+
+            geometry_msgs::TransformStamped tf_msg;
+            tf_msg.transform = tf2::toMsg(tf_transform);
+            tf_msg.header.stamp = ros::Time::now();
+            tf_msg.header.frame_id = target_frame_;
+            tf_msg.child_frame_id = pose.Class;
+            broadcaster_.sendTransform(tf_msg);
+            // broadcaster_.sendTransform( tf::StampedTransform ( tf_transform, ros::Time::now(), target_frame_, pose.Class ));
         }
         object_id++;
     }

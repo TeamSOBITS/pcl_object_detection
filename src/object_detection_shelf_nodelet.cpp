@@ -5,11 +5,11 @@
 #include <pcl_object_detection/point_cloud_processor.hpp>
 #include <pcl_object_detection/PCLParameterConfig.h>
 
-#include <sobit_common_msg/RunCtrl.h>
-#include <sobit_common_msg/ObjectPose.h>
-#include <sobit_common_msg/ObjectPoseArray.h>
+#include <sobits_msgs/RunCtrl.h>
+#include <sobits_msgs/ObjectPose.h>
+#include <sobits_msgs/ObjectPoseArray.h>
 
-#include <tf/transform_broadcaster.h>
+#include <tf2_ros/transform_broadcaster.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Int32.h>
 
@@ -37,7 +37,7 @@ namespace pcl_object_detection {
             dynamic_reconfigure::Server<pcl_object_detection::PCLParameterConfig>::CallbackType f_;
 
             void callbackDynamicReconfigure(pcl_object_detection::PCLParameterConfig& config, uint32_t level);
-            bool callbackSubscriberSwitch( sobit_common_msg::RunCtrl::Request &req, sobit_common_msg::RunCtrl::Response &res  );
+            bool callbackSubscriberSwitch( sobits_msgs::RunCtrl::Request &req, sobits_msgs::RunCtrl::Response &res  );
             void callbackCloud( const sensor_msgs::PointCloud2ConstPtr& cloud_msg );
 
         public:
@@ -63,13 +63,13 @@ void pcl_object_detection::ObjectDetectionShelf::callbackDynamicReconfigure(pcl_
     return;
 }
 
-bool pcl_object_detection::ObjectDetectionShelf::callbackSubscriberSwitch( sobit_common_msg::RunCtrl::Request &req, sobit_common_msg::RunCtrl::Response &res ) {
+bool pcl_object_detection::ObjectDetectionShelf::callbackSubscriberSwitch( sobits_msgs::RunCtrl::Request &req, sobits_msgs::RunCtrl::Response &res ) {
     if ( req.request ) {
         NODELET_INFO ("[ ObjectDetectionFloor ] Turn on the ObjectDetectionShelf" );
-        sub_point_cloud_ = nh_.subscribe(pointcloud_topic_, 10, &ObjectDetectionShelf::callbackCloud, this); //オン（再定義）
+        sub_point_cloud_ = nh_.subscribe(pointcloud_topic_, 10, &ObjectDetectionShelf::callbackCloud, this); //On (redefined)
     } else {
         NODELET_INFO ("[ ObjectDetectionShelf ] Turn off the ObjectDetectionShelf" );
-        sub_point_cloud_.shutdown();//オフ
+        sub_point_cloud_.shutdown();//off
     }
     res.response = true;
     return true;
@@ -95,7 +95,7 @@ void pcl_object_detection::ObjectDetectionShelf::onInit() {
 
     pub_cloud_detection_range_ = nh_.advertise<PointCloud>("cloud_detection_range", 1);
     pub_cloud_object_ = nh_.advertise<PointCloud>("cloud_object", 1);
-    pub_pose_array_ = nh_.advertise<sobit_common_msg::ObjectPoseArray>("object_poses", 1);
+    pub_pose_array_ = nh_.advertise<sobits_msgs::ObjectPoseArray>("object_poses", 1);
 
 }
 

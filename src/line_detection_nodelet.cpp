@@ -7,11 +7,11 @@
 #include <pcl_object_detection/LineInfo.h>
 #include <pcl_object_detection/LineDetectionService.h>
 
-#include <sobit_common_msg/RunCtrl.h>
-#include <sobit_common_msg/ObjectPose.h>
-#include <sobit_common_msg/ObjectPoseArray.h>
+#include <sobits_msgs/RunCtrl.h>
+#include <sobits_msgs/ObjectPose.h>
+#include <sobits_msgs/ObjectPoseArray.h>
 
-#include <tf/transform_broadcaster.h>
+#include <tf2_ros/transform_broadcaster.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float64.h>
 #include <visualization_msgs/Marker.h>
@@ -44,7 +44,7 @@ namespace pcl_object_detection {
             dynamic_reconfigure::Server<pcl_object_detection::LineDetectionParameterConfig>::CallbackType f_;
 
             void callbackDynamicReconfigure(pcl_object_detection::LineDetectionParameterConfig& config, uint32_t level);
-            bool callbackSubscriberSwitch( sobit_common_msg::RunCtrl::Request &req, sobit_common_msg::RunCtrl::Response &res  );
+            bool callbackSubscriberSwitch( sobits_msgs::RunCtrl::Request &req, sobits_msgs::RunCtrl::Response &res  );
             void callbackScan2D ( const sensor_msgs::LaserScanConstPtr &scan2d_msg );
             bool detectLine( pcl_object_detection::LineDetectionService::Request &req, pcl_object_detection::LineDetectionService::Response &res );
             visualization_msgs::Marker makeMakerString( const std::string string, const double x, const double y, const double z );
@@ -64,10 +64,10 @@ void pcl_object_detection::LineDetection::callbackDynamicReconfigure(pcl_object_
 
     if ( config.run_ctr ) {
         NODELET_INFO ("[ ObjectDetectionFloor ] Turn on the LineDetection" );
-        sub_scan_ = nh_.subscribe(scan_topic_, 10, &LineDetection::callbackScan2D, this); //オン（再定義）
+        sub_scan_ = nh_.subscribe(scan_topic_, 10, &LineDetection::callbackScan2D, this); //On (redefined)
     } else {
         NODELET_INFO ("[ LineDetection ] Turn off the LineDetection" );
-        sub_scan_.shutdown();//オフ
+        sub_scan_.shutdown();//off
     }
     pcp_->setTargetFrame( config.base_frame_name );
     pcp_->setPassThroughParameters( "y", config.passthrough_y_min, config.passthrough_y_max );
@@ -75,13 +75,13 @@ void pcl_object_detection::LineDetection::callbackDynamicReconfigure(pcl_object_
     return;
 }
 
-bool pcl_object_detection::LineDetection::callbackSubscriberSwitch( sobit_common_msg::RunCtrl::Request &req, sobit_common_msg::RunCtrl::Response &res ) {
+bool pcl_object_detection::LineDetection::callbackSubscriberSwitch( sobits_msgs::RunCtrl::Request &req, sobits_msgs::RunCtrl::Response &res ) {
     if ( req.request ) {
         NODELET_INFO ("[ ObjectDetectionFloor ] Turn on the LineDetection" );
-        sub_scan_ = nh_.subscribe(scan_topic_, 10, &LineDetection::callbackScan2D, this); //オン（再定義）
+        sub_scan_ = nh_.subscribe(scan_topic_, 10, &LineDetection::callbackScan2D, this); //On (redefined)
     } else {
         NODELET_INFO ("[ LineDetection ] Turn off the LineDetection" );
-        sub_scan_.shutdown();//オフ
+        sub_scan_.shutdown();//off
     }
     res.response = true;
     return true;

@@ -33,7 +33,7 @@ void ScanPublisherNode::callbackTimer(const ros::TimerEvent& e){
     Eigen::Quaternionf rotation(quat.w(), quat.x(), quat.y(), quat.z());
     Eigen::Vector3f offset(0.0, 0.0, 0.0);
 
-    //回転
+    //rotation
     pcl::transformPointCloud( *cloud_, *cloud_transformed, offset, rotation );
 
     pcl_conversions::toPCL(ros::Time::now(), cloud_transformed->header.stamp);

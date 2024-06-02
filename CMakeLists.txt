@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.10.2)
 project(pcl_object_detection)
 
 add_compile_options(-std=c++14 -O2 -g -Wall)
@@ -8,20 +8,24 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   laser_geometry
   message_generation
+  pluginlib
   nodelet
   pcl_conversions
   pcl_ros
   roscpp
   rospy
-  sobit_common_msg
   std_msgs
   visualization_msgs
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
 )
 
 ## Generate messages in the 'msg' folder
 add_message_files(
   FILES
   LineInfo.msg
+
 )
 
 # Generate services in the 'srv' folder
@@ -54,7 +58,21 @@ generate_dynamic_reconfigure_options(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS dynamic_reconfigure geometry_msgs laser_geometry nodelet pcl_conversions pcl_ros roscpp rospy sobit_common_msg std_msgs visualization_msgs
+  CATKIN_DEPENDS
+  dynamic_reconfigure
+  geometry_msgs
+  laser_geometry
+  pluginlib
+  nodelet
+  pcl_conversions
+  pcl_ros
+  roscpp
+  rospy
+  std_msgs
+  visualization_msgs
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
   DEPENDS system_lib
 )
 

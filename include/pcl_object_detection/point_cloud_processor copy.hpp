@@ -1,8 +1,7 @@
 #ifndef POINT_CLOUD_PROCESSOR_HPP
 #define POINT_CLOUD_PROCESSOR_HPP
 
-#include <tf2_ros/transform_listener.h>
-
+#include <tf/transform_listener.h>
 #include <laser_geometry/laser_geometry.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/LaserScan.h>
@@ -28,7 +27,7 @@
 #include <sobits_msgs/ObjectPose.h>
 #include <sobits_msgs/ObjectPoseArray.h>
 
-#include <tf2_ros/transform_broadcaster.h>
+#include <tf/transform_broadcaster.h>
 
 #include <Eigen/Core>
 
@@ -59,8 +58,7 @@ struct ObjectSizeParameter {
 namespace pcl_object_detection {
     class PointCloudProcessor {
         protected:
-            tf2_ros::Buffer tfBuffer_;
-            tf2_ros::TransformListener tfListener_;
+            tf::TransformListener tf_listener_;
             laser_geometry::LaserProjection projector_;
             pcl::PassThrough<PointT> pass_;
             pcl::VoxelGrid<PointT> voxel_;
@@ -72,7 +70,7 @@ namespace pcl_object_detection {
             pcl::KdTreeFLANN<PointT> flann_;
             pcl::ConcaveHull<PointT> hull_;
 
-            tf2_ros::TransformBroadcaster broadcaster_;
+            tf::TransformBroadcaster broadcaster_;
             std::string target_frame_;
             bool need_tf_;
 
