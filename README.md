@@ -58,6 +58,9 @@
 | Ubuntu | 20.04 (Focal Fossa) |
 | ROS    | Noetic Ninjemys |
 
+> [!NOTE]
+> `Ubuntu`や`ROS`のインストール方法に関しては，[SOBITS Manual](https://github.com/TeamSOBITS/sobits_manual#%E9%96%8B%E7%99%BA%E7%92%B0%E5%A2%83%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6)に参照してください．
+
 <p align="right">(<a href="#readme-top">上に戻る</a>)</p>
 
 
