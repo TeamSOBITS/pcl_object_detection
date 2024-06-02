@@ -1,14 +1,24 @@
 <?xml version="1.0"?>
-<package format="2">
+<?xml-model
+  href="http://download.ros.org/schema/package_format3.xsd"
+  schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
   <name>pcl_object_detection</name>
   <version>0.0.0</version>
-  <description>The pcl_object_detection package</description>
+  <description>
+    The pcl_object_detection package provides a nodelet for detecting objects in point clouds.
+  </description>
+  <maintainer email="kvalentincardenas@gmail.com">Keith Valentin</maintainer>
 
-  <maintainer email="sobits@todo.todo">sobits</maintainer>
+  <license>BSD</license>
 
-  <license>TODO</license>
+  <url type="website">https://home.soka.ac.jp/~choi/index.html</url>
+  <url type="repository">https://github.com/TeamSOBITS/pcl_object_detection</url>
+  <url type="bugtracker">https://github.com/TeamSOBITS/pcl_object_detection/issues</url>
+  <author email="choi.7f@gmail.com">Team SOBITS</author>
 
   <buildtool_depend>catkin</buildtool_depend>
+
   <depend>dynamic_reconfigure</depend>
   <depend>geometry_msgs</depend>
   <depend>laser_geometry</depend>

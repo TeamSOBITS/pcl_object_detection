@@ -1,5 +1,5 @@
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Changelog for package sobit_pro
+Changelog for package pcl_object_detection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 1.0.0 (2024-4-XX)
