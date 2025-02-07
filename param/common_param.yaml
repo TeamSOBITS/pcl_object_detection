@@ -1,0 +1,9 @@
+
+pointcloud_topic_name : /points2
+scan_topic_name : /scan
+# base_frame_name : base_footprint
+base_frame_name : azure_camera_base
+publish_cloud_detection_range : true
+publish_cloud_object : true
+publish_pose_array : true
+use_tf : true

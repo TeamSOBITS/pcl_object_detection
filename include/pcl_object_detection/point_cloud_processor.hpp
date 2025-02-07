@@ -1,18 +1,20 @@
 #ifndef POINT_CLOUD_PROCESSOR_HPP
 #define POINT_CLOUD_PROCESSOR_HPP
 
+#include <rclcpp/rclcpp.hpp>
 #include <tf2_ros/transform_listener.h>
-
-#include <laser_geometry/laser_geometry.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <sensor_msgs/LaserScan.h>
-
-#include <pcl_ros/point_cloud.h>
-#include <pcl_ros/transforms.h>
+#include <tf2_ros/buffer.h>
+#include <laser_geometry/laser_geometry.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <sensor_msgs/msg/laser_scan.hpp>
+#include <geometry_msgs/msg/point.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/common/common.h>
+#include <pcl/common/transforms.h>
 #include <pcl/kdtree/kdtree.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/filters/extract_indices.h>
@@ -23,14 +25,23 @@
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/surface/concave_hull.h>
-
-#include <sobits_msgs/RunCtrl.h>
-#include <sobits_msgs/ObjectPose.h>
-#include <sobits_msgs/ObjectPoseArray.h>
-
+#include <pcl/common/centroid.h>
+#include <pcl/conversions.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <Eigen/Eigenvalues>
 #include <tf2_ros/transform_broadcaster.h>
 
+#include <tf2_eigen/tf2_eigen.hpp>
+
+
+
+// #include <pcl_ros/transforms.hpp>
+
 #include <Eigen/Core>
+#include <sobits_interfaces/srv/run_ctrl.hpp>
+#include <sobits_interfaces/msg/object_pose.hpp>
+#include <sobits_interfaces/msg/object_pose_array.hpp>
+
 
 typedef pcl::PointXYZ PointT;
 typedef pcl::PointCloud<PointT> PointCloud;
@@ -57,63 +68,73 @@ struct ObjectSizeParameter {
 };
 
 namespace pcl_object_detection {
-    class PointCloudProcessor {
-        protected:
-            tf2_ros::Buffer tfBuffer_;
-            tf2_ros::TransformListener tfListener_;
-            laser_geometry::LaserProjection projector_;
-            pcl::PassThrough<PointT> pass_;
-            pcl::VoxelGrid<PointT> voxel_;
-            pcl::search::KdTree<PointT>::Ptr tree_;
-            pcl::EuclideanClusterExtraction<PointT> ec_;
-            pcl::ExtractIndices<PointT> extract_;
-            pcl::RadiusOutlierRemoval<PointT> outrem_;
-            pcl::SACSegmentation<PointT> seg_;
-            pcl::KdTreeFLANN<PointT> flann_;
-            pcl::ConcaveHull<PointT> hull_;
+    class PointCloudProcessor : public rclcpp::Node {
+    protected:
+        tf2_ros::Buffer tfBuffer_;
+        // std::shared_ptr<tf2_ros::TransformListener> tfListener_;
+        laser_geometry::LaserProjection projector_;
+        pcl::PassThrough<PointT> pass_;
+        pcl::VoxelGrid<PointT> voxel_;
+        pcl::search::KdTree<PointT>::Ptr tree_;
+        pcl::EuclideanClusterExtraction<PointT> ec_;
+        pcl::ExtractIndices<PointT> extract_;
+        pcl::RadiusOutlierRemoval<PointT> outrem_;
+        pcl::SACSegmentation<PointT> seg_;
+        pcl::KdTreeFLANN<PointT> flann_;
+        pcl::ConcaveHull<PointT> hull_;
 
-            tf2_ros::TransformBroadcaster broadcaster_;
-            std::string target_frame_;
-            bool need_tf_;
+        std::unique_ptr<tf2_ros::TransformListener> tfListener_;
+        std::shared_ptr<tf2_ros::TransformBroadcaster> broadcaster_;
+        
+        // tfListener_ = std::make_shared<tf2_ros::TransformListener>(tfBuffer_);
 
-        public:
-            PassthroughParameter pass_param;
-            ObjectSizeParameter obj_param;
 
-            PointCloudProcessor();
-            void setTargetFrame( const std::string& target_frame );
-            void setFlag( const bool need_tf );
-            void setPassThroughParameters( const std::string &axis, const float &limit_min, const float &limit_max );
-            void setPassThroughParameters( const double x_min, const double x_max, const double y_min, const double y_max, const double z_min, const double z_max );
-            void setVoxelGridParameter( const float leaf_size );
-            void setClusteringParameters ( const float tolerance, const int min_size, const int max_size );
-            void setRadiusOutlierRemovalParameters ( const double radius, const int min_pts, const bool keep_organized );
-            void setSACSegmentationParameter( const int model,  const int method, const double threshold, const double probability );
-            void setSACPlaneParameter( const std::string &axis, const double eps_angle_degree );
-            void setObjectSizeParameter( const double x_min, const double x_max, const double y_min, const double y_max, const double z_min, const double z_max );
-            void setObjectOffsetParameter( const double x_offset, const double y_offset, const double z_offset );
 
-            bool transformFramePointCloud ( const sensor_msgs::PointCloud2ConstPtr &input_cloud, PointCloud::Ptr output_cloud );
-            bool transformFrameScan2D2PointCloud ( const sensor_msgs::LaserScanConstPtr &input_scan2d, PointCloud::Ptr output_cloud );
-            geometry_msgs::Point transformPoint ( std::string org_frame, std::string target_frame, geometry_msgs::Point point );
-            bool passThrough ( const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud );
-            void passThroughXYZ( PointCloud::Ptr cloud );
-            bool voxelGrid ( const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud );
-            bool euclideanClusterExtraction ( const PointCloud::Ptr input_cloud, std::vector<pcl::PointIndices>* output_indices );
-            bool extractIndices( const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud, const pcl::PointIndices::Ptr indices, bool negative );
-            bool statisticalRemoval ( const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud, const int nr_k, const double stddev_mult );
-            bool radiusOutlierRemoval ( const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud );
-            bool sacSegmentation( const PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr inliers, pcl::ModelCoefficients::Ptr coefficients );
-            bool radiusSearch ( PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::Point& search_pt, const double radius, bool is_accept_add_point );
-            bool nearestKSearch( PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::Point& search_pt, const int K = 1 );
-            bool ConcaveHull( const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud );
-            int principalComponentAnalysis(
-                const PointCloud::Ptr cloud,
-                const std::vector<pcl::PointIndices>& cluster_indices,
-                sobits_msgs::ObjectPoseArrayPtr pose_array_msg,
-                PointCloud::Ptr cloud_object,
-                const int init_object_id = 0 );
-            static bool compareDistance(sobits_msgs::ObjectPose &a, sobits_msgs::ObjectPose &b);
+        std::string target_frame_;
+        bool need_tf_;
+
+    public:
+        PassthroughParameter pass_param;
+        ObjectSizeParameter obj_param;
+
+        PointCloudProcessor(const std::string &name);
+        ~PointCloudProcessor();
+
+        // Setter functions
+        void setTargetFrame(const std::string& target_frame);
+        void setFlag(const bool need_tf);
+        void setPassThroughParameters(const std::string &axis, const float &limit_min, const float &limit_max);
+        void setPassThroughParameters(double x_min, double x_max, double y_min, double y_max, double z_min, double z_max);
+        void setVoxelGridParameter(float leaf_size);
+        void setClusteringParameters(float tolerance, int min_size, int max_size);
+        void setRadiusOutlierRemovalParameters(double radius, int min_pts, bool keep_organized);
+        void setSACSegmentationParameter(int model, int method, double threshold, double probability);
+        void setSACPlaneParameter(const std::string &axis, double eps_angle_degree);
+        void setObjectSizeParameter(double x_min, double x_max, double y_min, double y_max, double z_min, double z_max);
+        void setObjectOffsetParameter(double x_offset, double y_offset, double z_offset);
+
+        // Processing functions
+        bool transformFramePointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr &input_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud);
+        bool transformFrameScan2D2PointCloud(const sensor_msgs::msg::LaserScan::SharedPtr &input_scan2d, PointCloud::Ptr output_cloud);
+        geometry_msgs::msg::Point transformPoint(const std::string &org_frame, const std::string &target_frame, const geometry_msgs::msg::Point &point);
+        bool passThrough(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud);
+        void passThroughXYZ(PointCloud::Ptr cloud);
+        bool voxelGrid(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud);
+        bool euclideanClusterExtraction(const PointCloud::Ptr input_cloud, std::vector<pcl::PointIndices>* output_indices);
+        bool extractIndices(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud, const pcl::PointIndices::Ptr indices, bool negative);
+        bool statisticalRemoval(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud, int nr_k, double stddev_mult);
+        bool radiusOutlierRemoval(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud);
+        bool sacSegmentation(const PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr inliers, pcl::ModelCoefficients::Ptr coefficients);
+        bool radiusSearch(PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::msg::Point& search_pt, double radius, bool is_accept_add_point);
+        bool nearestKSearch(PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::msg::Point& search_pt, int K = 1);
+        bool ConcaveHull(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud);
+        int principalComponentAnalysis(
+            const PointCloud::Ptr cloud,
+            const std::vector<pcl::PointIndices>& cluster_indices,
+            sobits_interfaces::msg::ObjectPoseArray::SharedPtr pose_array_msg,
+            PointCloud::Ptr cloud_object,
+            int init_object_id = 0);
+        static bool compareDistance(sobits_interfaces::msg::ObjectPose &a, sobits_interfaces::msg::ObjectPose &b);
     };
 
     inline void PointCloudProcessor::setTargetFrame( const std::string& target_frame ) {
@@ -179,12 +200,11 @@ namespace pcl_object_detection {
         obj_param.y_offset = y_offset;
         obj_param.z_offset = z_offset;
     }
-    inline bool PointCloudProcessor::compareDistance(sobits_msgs::ObjectPose &a, sobits_msgs::ObjectPose &b) {
+    inline bool PointCloudProcessor::compareDistance(sobits_interfaces::msg::ObjectPose &a, sobits_interfaces::msg::ObjectPose &b) {
         double a_dist = std::hypotf( a.pose.position.x,  a.pose.position.y );
         double b_dist = std::hypotf( b.pose.position.x,  b.pose.position.y );
         return a_dist < b_dist; //近い順
     }
-
 }
 
-#endif
+#endif // POINT_CLOUD_PROCESSOR_HPP

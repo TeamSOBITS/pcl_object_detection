@@ -1,66 +1,80 @@
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <iostream>
-#include <pcl_ros/point_cloud.h>
+#include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl_ros/transforms.h>
-#include <sensor_msgs/PointCloud2.h>
+#include <pcl/common/transforms.h>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <pcl_conversions/pcl_conversions.h>
+#include <tf2/LinearMath/Quaternion.h>
 
 typedef pcl::PointXYZ PointT;
 typedef pcl::PointCloud<PointT> PointCloud;
 
-class ScanPublisherNode
+class ScanPublisherNode : public rclcpp::Node
 {
-    private:
-        ros::NodeHandle nh_;
-        ros::NodeHandle pnh_;
-        ros::Timer timer_;
-        ros::Publisher pub_cloud_sensor_;
-        PointCloud::Ptr cloud_;
-        double theta_;
-        double delta_theta_;
+private:
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_sensor_;
+    rclcpp::TimerBase::SharedPtr timer_;
+    PointCloud::Ptr cloud_;
+    double theta_;
+    double delta_theta_;
 
-        void callbackTimer(const ros::TimerEvent& e);
-    public:
-        ScanPublisherNode();
+    void callbackTimer();
+
+public:
+    ScanPublisherNode();
 };
 
-void ScanPublisherNode::callbackTimer(const ros::TimerEvent& e){
-    PointCloud::Ptr cloud_transformed ( new PointCloud() );
+void ScanPublisherNode::callbackTimer() {
+    auto cloud_transformed = std::make_shared<PointCloud>();
 
     theta_ += delta_theta_;
-    if ( theta_ > 0.6 || theta_ < -0.6 ) delta_theta_ = -delta_theta_;
-    tf::Quaternion quat = tf::createQuaternionFromRPY(0.0, 0.0, theta_);
+    if (theta_ > 0.6 || theta_ < -0.6) {
+        delta_theta_ = -delta_theta_;
+    }
+
+    tf2::Quaternion quat;
+    quat.setRPY(0.0, 0.0, theta_);
     Eigen::Quaternionf rotation(quat.w(), quat.x(), quat.y(), quat.z());
     Eigen::Vector3f offset(0.0, 0.0, 0.0);
 
-    //rotation
-    pcl::transformPointCloud( *cloud_, *cloud_transformed, offset, rotation );
+    // Apply rotation and transform
+    pcl::transformPointCloud(*cloud_, *cloud_transformed, offset, rotation);
 
-    pcl_conversions::toPCL(ros::Time::now(), cloud_transformed->header.stamp);
+    // Set header and publish
     cloud_transformed->header.frame_id = "base_laser_link";
-    pub_cloud_sensor_.publish(cloud_transformed);
-    return;
+    pcl_conversions::toPCL(this->now(), cloud_transformed->header.stamp);
+
+    auto msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
+    pcl::toROSMsg(*cloud_transformed, *msg);
+    pub_cloud_sensor_->publish(*msg);
 }
 
-ScanPublisherNode::ScanPublisherNode() : nh_(), pnh_("~") {
-    pub_cloud_sensor_ = nh_.advertise<sensor_msgs::PointCloud2>("/cloud_laserscan", 1);
-    cloud_.reset( new PointCloud() );
+ScanPublisherNode::ScanPublisherNode() : Node("scan_publisher_node"), theta_(0.0), delta_theta_(0.02) {
+    pub_cloud_sensor_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_laserscan", 10);
+
+    cloud_ = std::make_shared<PointCloud>();
     double limit_y = 4.0;
-    for ( double y = 0.0; y < limit_y; y += 0.01 ) {
+    for (double y = 0.0; y < limit_y; y += 0.01) {
         PointT p;
-        p.x = 2.0; p.y = y; p.z = 0.0;
+        p.x = 2.0;
+        p.y = y;
+        p.z = 0.0;
         cloud_->points.push_back(p);
         p.y = -p.y;
         cloud_->points.push_back(p);
     }
-    timer_ = nh_.createTimer( ros::Duration(0.033), &ScanPublisherNode::callbackTimer, this );
-    theta_ = 0.0;
-    delta_theta_ = 0.02;
+
+    timer_ = this->create_wall_timer(
+        std::chrono::milliseconds(33),
+        std::bind(&ScanPublisherNode::callbackTimer, this)
+    );
 }
 
 int main(int argc, char *argv[]) {
-    ros::init(argc, argv, "scan_publisher_node");
-    ScanPublisherNode sp;
-    ros::spin();
+    rclcpp::init(argc, argv);
+    auto node = std::make_shared<ScanPublisherNode>();
+    rclcpp::spin(node);
+    rclcpp::shutdown();
     return 0;
 }

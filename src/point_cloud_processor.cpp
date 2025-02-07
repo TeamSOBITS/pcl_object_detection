@@ -1,151 +1,176 @@
+
+
 #include <pcl_object_detection/point_cloud_processor.hpp>
 
 #include <tf2_ros/transform_broadcaster.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <pcl_conversions/pcl_conversions.h>
 
 using namespace pcl_object_detection;
 
-PointCloudProcessor::PointCloudProcessor():tfBuffer_(), tfListener_(tfBuffer_) {
-    setPassThroughParameters( 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 );
-    setPassThroughParameters( "z", 0.1, 1.0);
-    setVoxelGridParameter( 0.01 );
-    setClusteringParameters( 0.05, 1, 1000 );
-    setSACSegmentationParameter( pcl::SACMODEL_PLANE, pcl::SAC_RANSAC, 0.01, 0.95 );
-    setRadiusOutlierRemovalParameters( 0.05, 20, false );
-    setObjectSizeParameter( 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 );
-    setObjectOffsetParameter( 0.0, 0.0, 0.0 );
-    tree_ .reset ( new pcl::search::KdTree<PointT>() );
+PointCloudProcessor::PointCloudProcessor(const std::string &name): Node(name),tfBuffer_(this->get_clock())
+//   tfListener_ = std::make_shared<tf2_ros::TransformListener>(tfBuffer_);
+{
+    tfListener_ = std::make_unique<tf2_ros::TransformListener>(tfBuffer_);
+    // broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(shared_from_this());
+    broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);  // ✅ OK
+
+    setPassThroughParameters(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
+    setPassThroughParameters("z", 0.1, 1.0);
+    setVoxelGridParameter(0.01);
+    setClusteringParameters(0.05, 1, 1000);
+    setSACSegmentationParameter(pcl::SACMODEL_PLANE, pcl::SAC_RANSAC, 0.01, 0.95);
+    setRadiusOutlierRemovalParameters(0.05, 20, false);
+    setObjectSizeParameter(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
+    setObjectOffsetParameter(0.0, 0.0, 0.0);
+    tree_.reset(new pcl::search::KdTree<PointT>());
 }
-bool PointCloudProcessor::transformFramePointCloud ( const sensor_msgs::PointCloud2ConstPtr &input_cloud, PointCloud::Ptr output_cloud ) {
-    PointCloud cloud_src;
-    pcl::fromROSMsg<PointT>( *input_cloud, cloud_src );
-    if (target_frame_.empty() == false ){
-        try {
-            tfBuffer_.canTransform(target_frame_, cloud_src.header.frame_id, ros::Time(0), ros::Duration(1.0));
-            pcl_ros::transformPointCloud(target_frame_, ros::Time(0), cloud_src, cloud_src.header.frame_id,  *output_cloud, tfBuffer_);
-            output_cloud->header.frame_id = target_frame_;
-        } catch (const tf2::TransformException& ex) {
-            ROS_ERROR("%s", ex.what());
-            return false;
-        }
-    } else ROS_ERROR("Please set the target frame.");
-    return true;
-}
-bool PointCloudProcessor::transformFrameScan2D2PointCloud ( const sensor_msgs::LaserScanConstPtr &input_scan2d, PointCloud::Ptr output_cloud ) {
-    sensor_msgs::PointCloud2Ptr cloud ( new sensor_msgs::PointCloud2 );
-    if (target_frame_.empty() == false ) {
-        tfBuffer_.canTransform(target_frame_, input_scan2d->header.frame_id, input_scan2d->header.stamp, ros::Duration(5.0));
-        projector_.transformLaserScanToPointCloud(target_frame_, *input_scan2d, *cloud, tfBuffer_);
-        pcl::fromROSMsg<PointT>(*cloud, *output_cloud);
-        output_cloud->header.frame_id = target_frame_;
-    } else ROS_ERROR("Please set the target frame.");
+
+PointCloudProcessor::~PointCloudProcessor() { 
+        // std::cout << "PointCloudProcessor Destroyed" << std::endl; 
+    }
+
+bool pcl_object_detection::PointCloudProcessor::transformFramePointCloud(
+    const sensor_msgs::msg::PointCloud2::SharedPtr &input_cloud,
+    pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud) {
+    // Transform lookup
+    auto transform_stamped = tfBuffer_.lookupTransform(
+        target_frame_, input_cloud->header.frame_id, tf2::TimePointZero);
+
+    // Convert to Eigen Matrix
+    Eigen::Isometry3d transform_iso = tf2::transformToEigen(transform_stamped.transform);
+    Eigen::Matrix4f transform_matrix = transform_iso.matrix().cast<float>();
+
+
+    // Transform the point cloud
+    pcl::transformPointCloud(*output_cloud, *output_cloud, transform_matrix);
     return true;
 }
 
-geometry_msgs::Point PointCloudProcessor::transformPoint ( std::string org_frame, std::string target_frame, geometry_msgs::Point point ) {
-    geometry_msgs::PointStamped pt_transformed;
-    geometry_msgs::PointStamped pt;
-    pt.header.frame_id = org_frame;
-    pt.header.stamp = ros::Time(0);
-    pt.point = point;
-    if ( tfBuffer_._frameExists( target_frame ) ) {
+
+
+bool PointCloudProcessor::transformFrameScan2D2PointCloud(const sensor_msgs::msg::LaserScan::SharedPtr &input_scan2d, PointCloud::Ptr output_cloud) {
+    sensor_msgs::msg::PointCloud2 cloud;
+
+    if (!target_frame_.empty()) {
         try {
-            tfBuffer_.transform(pt, pt_transformed, target_frame);
-        } catch ( const tf2::TransformException& ex ) {
-            ROS_ERROR( "%s",ex.what( ) );
+            geometry_msgs::msg::TransformStamped transform =
+                tfBuffer_.lookupTransform(target_frame_, input_scan2d->header.frame_id, tf2::TimePointZero);
+
+            projector_.transformLaserScanToPointCloud(target_frame_, *input_scan2d, cloud, tfBuffer_);
+            pcl::fromROSMsg(cloud, *output_cloud);
+            output_cloud->header.frame_id = target_frame_;
+        } catch (const tf2::TransformException &ex) {
+            RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
+            return false;
         }
     } else {
-        ROS_ERROR("target_frame is not Exists");
+        RCLCPP_ERROR(this->get_logger(), "Please set the target frame.");
+        return false;
     }
+    return true;
+}
+
+geometry_msgs::msg::Point PointCloudProcessor::transformPoint(const std::string &org_frame, const std::string &target_frame, const geometry_msgs::msg::Point &point) {
+    geometry_msgs::msg::PointStamped pt_transformed;
+    geometry_msgs::msg::PointStamped pt;
+    pt.header.frame_id = org_frame;
+    pt.header.stamp = this->get_clock()->now();
+    pt.point = point;
+
+    try {
+        pt_transformed = tfBuffer_.transform(pt, target_frame);
+    } catch (const tf2::TransformException &ex) {
+        RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
+    }
+
     return pt_transformed.point;
 }
 
-// passThrough a point cloud :
-bool PointCloudProcessor::passThrough ( const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud ) {
+bool PointCloudProcessor::passThrough(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud) {
     try {
-        pass_.setInputCloud( input_cloud );
-        pass_.filter( *output_cloud );
+        pass_.setInputCloud(input_cloud);
+        pass_.filter(*output_cloud);
         output_cloud->header.frame_id = input_cloud->header.frame_id;
         return true;
-    } catch ( std::exception& ex ) {
-        ROS_ERROR("%s", ex.what());
-        return false;
-    }
-}
-void PointCloudProcessor::passThroughXYZ( PointCloud::Ptr cloud ) {
-    setPassThroughParameters( "x", pass_param.x_min, pass_param.x_max );
-    passThrough( cloud, cloud );
-    setPassThroughParameters( "y", pass_param.y_min, pass_param.y_max );
-    passThrough( cloud, cloud );
-    setPassThroughParameters( "z", pass_param.z_min, pass_param.z_max );
-    passThrough( cloud, cloud );
-}
-
-// Downsample a point cloud :
-bool PointCloudProcessor::voxelGrid ( const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud ) {
-    try {
-        voxel_.setInputCloud( input_cloud );
-        voxel_.filter( *output_cloud );
-        output_cloud->header.frame_id = input_cloud->header.frame_id;
-        return true;
-    } catch ( std::exception& ex ) {
-        ROS_ERROR("%s", ex.what());
-        return false;
-    }
-}
-// clustering extraction :
-bool PointCloudProcessor::euclideanClusterExtraction ( const PointCloud::Ptr input_cloud, std::vector<pcl::PointIndices>* output_indices ) {
-    try {
-        tree_->setInputCloud( input_cloud );
-        ec_.setInputCloud( input_cloud );
-        ec_.extract( *output_indices );
-        return true;
-    } catch ( std::exception& ex ) {
-        ROS_ERROR("%s", ex.what());
-        return false;
-    }
-}
-// Extract specified Indices from point cloud :
-bool PointCloudProcessor::extractIndices( const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud, const pcl::PointIndices::Ptr indices, bool negative ) {
-    try {
-        extract_.setInputCloud( input_cloud );
-        extract_.setIndices( indices );
-        extract_.setNegative( negative );
-        extract_.filter( *output_cloud );
-        output_cloud->header.frame_id = input_cloud->header.frame_id;
-        return true;
-    } catch ( std::exception& ex ) {
-        ROS_ERROR("%s", ex.what());
+    } catch (const std::exception &ex) {
+        RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
         return false;
     }
 }
 
-// Removing outliers using a RadiusOutlier removal :
-bool PointCloudProcessor::radiusOutlierRemoval ( const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud ) {
+void PointCloudProcessor::passThroughXYZ(PointCloud::Ptr cloud) {
+    setPassThroughParameters("x", pass_param.x_min, pass_param.x_max);
+    passThrough(cloud, cloud);
+    setPassThroughParameters("y", pass_param.y_min, pass_param.y_max);
+    passThrough(cloud, cloud);
+    setPassThroughParameters("z", pass_param.z_min, pass_param.z_max);
+    passThrough(cloud, cloud);
+}
+
+bool PointCloudProcessor::voxelGrid(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud) {
     try {
-        outrem_.setInputCloud( input_cloud );
-        outrem_.filter (*output_cloud);
+        voxel_.setInputCloud(input_cloud);
+        voxel_.filter(*output_cloud);
         output_cloud->header.frame_id = input_cloud->header.frame_id;
         return true;
-    } catch ( std::exception& ex ) {
-        ROS_ERROR("%s", ex.what());
+    } catch (const std::exception &ex) {
+        RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
         return false;
     }
 }
-// Random Sample Consensus model(https://pcl.readthedocs.io/projects/tutorials/en/latest/random_sample_consensus.html)
-bool PointCloudProcessor::sacSegmentation( const PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr inliers, pcl::ModelCoefficients::Ptr coefficients ) {
-    try{
-        seg_.setInputCloud (input_cloud);
-        seg_.segment (*inliers, *coefficients);
+
+bool PointCloudProcessor::euclideanClusterExtraction(const PointCloud::Ptr input_cloud, std::vector<pcl::PointIndices> *output_indices) {
+    try {
+        tree_->setInputCloud(input_cloud);
+        ec_.setInputCloud(input_cloud);
+        ec_.extract(*output_indices);
         return true;
-    } catch ( std::exception& ex ) {
-        ROS_ERROR("%s", ex.what());
+    } catch (const std::exception &ex) {
+        RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
+        return false;
+    }
+}
+
+bool PointCloudProcessor::extractIndices(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud, const pcl::PointIndices::Ptr indices, bool negative) {
+    try {
+        extract_.setInputCloud(input_cloud);
+        extract_.setIndices(indices);
+        extract_.setNegative(negative);
+        extract_.filter(*output_cloud);
+        output_cloud->header.frame_id = input_cloud->header.frame_id;
+        return true;
+    } catch (const std::exception &ex) {
+        RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
+        return false;
+    }
+}
+
+bool PointCloudProcessor::radiusOutlierRemoval(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud) {
+    try {
+        outrem_.setInputCloud(input_cloud);
+        outrem_.filter(*output_cloud);
+        output_cloud->header.frame_id = input_cloud->header.frame_id;
+        return true;
+    } catch (const std::exception &ex) {
+        RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
+        return false;
+    }
+}
+
+bool PointCloudProcessor::sacSegmentation(const PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr inliers, pcl::ModelCoefficients::Ptr coefficients) {
+    try {
+        seg_.setInputCloud(input_cloud);
+        seg_.segment(*inliers, *coefficients);
+        return true;
+    } catch (const std::exception &ex) {
+        RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
         return false;
     }
 }
 
 // radius Search :
-bool PointCloudProcessor::radiusSearch ( PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::Point& search_pt, const double radius, bool is_accept_add_point ) {
+bool PointCloudProcessor::radiusSearch ( PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::msg::Point& search_pt, const double radius, bool is_accept_add_point ) {
     try{
         bool is_match = false;
         PointT searchPoint;
@@ -168,12 +193,12 @@ bool PointCloudProcessor::radiusSearch ( PointCloud::Ptr input_cloud, pcl::Point
         }
         return is_match;
     } catch ( std::exception& ex ) {
-        ROS_ERROR("%s", ex.what());
+        RCLCPP_ERROR(this->get_logger(),"%s", ex.what());
         return false;
     }
 }
 
-bool PointCloudProcessor::nearestKSearch( PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::Point& search_pt, const int K ) {
+bool PointCloudProcessor::nearestKSearch( PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::msg::Point& search_pt, const int K ) {
     try{
         bool is_match = false;
         PointT searchPoint;
@@ -190,7 +215,7 @@ bool PointCloudProcessor::nearestKSearch( PointCloud::Ptr input_cloud, pcl::Poin
         }
         return is_match;
     } catch ( std::exception& ex ) {
-        ROS_ERROR("%s", ex.what());
+        RCLCPP_ERROR(this->get_logger(),"%s", ex.what());
         return false;
     }
 }
@@ -203,7 +228,7 @@ bool PointCloudProcessor::ConcaveHull( const PointCloud::Ptr input_cloud, PointC
         output_cloud->header.frame_id = input_cloud->header.frame_id;
         return true;
     } catch ( std::exception& ex ) {
-        ROS_ERROR("%s", ex.what());
+        RCLCPP_ERROR(this->get_logger(),"%s", ex.what());
         return false;
     }
 }
@@ -211,7 +236,7 @@ bool PointCloudProcessor::ConcaveHull( const PointCloud::Ptr input_cloud, PointC
 int PointCloudProcessor::principalComponentAnalysis(
     const PointCloud::Ptr cloud,
     const std::vector<pcl::PointIndices>& cluster_indices,
-    sobits_msgs::ObjectPoseArrayPtr pose_array_msg,
+    sobits_interfaces::msg::ObjectPoseArray::SharedPtr pose_array_msg,
     PointCloud::Ptr cloud_object,
     const int init_object_id )
 {
@@ -246,7 +271,7 @@ int PointCloudProcessor::principalComponentAnalysis(
         // double pitch = std::atan2( eigen_vectors_pca(2, 0), eigen_vectors_pca(0, 0) );
         double yaw = std::atan2( eigen_vectors_pca(1, 0), eigen_vectors_pca(0, 0) ) + M_PI;
 
-        sobits_msgs::ObjectPose pose;
+        sobits_interfaces::msg::ObjectPose pose;
         pose.pose.position.x = pca_centroid(0)+obj_size.x_offset;
         pose.pose.position.y = pca_centroid(1)+obj_size.y_offset;
         pose.pose.position.z = pca_centroid(2)+obj_size.z_offset;
@@ -260,7 +285,7 @@ int PointCloudProcessor::principalComponentAnalysis(
 
     int object_id = init_object_id;
     for ( auto& pose : pose_array_msg->object_poses ) {
-        pose.Class = "object_" + std::to_string(object_id);
+        pose.class_name = "object_" + std::to_string(object_id);
         pose.detect_id = object_id;
         if ( need_tf ) {
             tf2::Transform tf_transform;
@@ -271,12 +296,12 @@ int PointCloudProcessor::principalComponentAnalysis(
             // quaternionMsgToTF(pose.pose.orientation , quat_tf);
             tf_transform.setRotation( quat_tf );
 
-            geometry_msgs::TransformStamped tf_msg;
+            geometry_msgs::msg::TransformStamped tf_msg;
             tf_msg.transform = tf2::toMsg(tf_transform);
-            tf_msg.header.stamp = ros::Time::now();
+            tf_msg.header.stamp = this->get_clock()->now();
             tf_msg.header.frame_id = target_frame_;
-            tf_msg.child_frame_id = pose.Class;
-            broadcaster_.sendTransform(tf_msg);
+            tf_msg.child_frame_id = pose.class_name;
+            broadcaster_->sendTransform(tf_msg);
             // broadcaster_.sendTransform( tf::StampedTransform ( tf_transform, ros::Time::now(), target_frame_, pose.Class ));
         }
         object_id++;
@@ -284,7 +309,8 @@ int PointCloudProcessor::principalComponentAnalysis(
 
     cloud_object->header.frame_id = cloud->header.frame_id;
     pose_array_msg->header.frame_id = cloud->header.frame_id;
-    pose_array_msg->header.stamp = ros::Time::now();
-    pcl_conversions::toPCL(ros::Time::now(), cloud_object->header.stamp);
+    pose_array_msg->header.stamp = this->get_clock()->now();
+    pcl_conversions::toPCL(this->get_clock()->now(), cloud_object->header.stamp);
     return  ( object_id == init_object_id ) ? -1 : object_id;
 }
+

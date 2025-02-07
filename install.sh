@@ -16,18 +16,16 @@ cd ${CURRENT_DIR}
 # Download ROS dependencies
 sudo apt-get update
 sudo apt-get install -y \
-    ros-${ROS_DISTRO}-dynamic-reconfigure \
     ros-${ROS_DISTRO}-geometry-msgs \
     ros-${ROS_DISTRO}-laser-geometry \
-    ros-${ROS_DISTRO}-message-generation \
     ros-${ROS_DISTRO}-pluginlib \
-    ros-${ROS_DISTRO}-nodelet \
     ros-${ROS_DISTRO}-pcl-conversions \
     ros-${ROS_DISTRO}-pcl-ros \
     ros-${ROS_DISTRO}-visualization-msgs \
     ros-${ROS_DISTRO}-tf2 \
     ros-${ROS_DISTRO}-tf2-ros \
-    ros-${ROS_DISTRO}-tf2-geometry-msgs
+    ros-${ROS_DISTRO}-tf2-geometry-msgs \
+    ros-${ROS_DISTRO}-laser-geometry
 
 
 echo "╚══╣ Install: PCL Object Detection (FINISHED) ╠══╝"

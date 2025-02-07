@@ -1,11 +1,3 @@
-pointcloud_topic_name : /points2
-# base_frame_name : base_footprint
-base_frame_name : azure_camera_base
-publish_cloud_detection_range : true
-publish_cloud_object : true
-publish_pose_array : true
-use_tf : true
-
 passthrough_x_min : 0.25
 passthrough_x_max : 0.85
 passthrough_y_min : -0.1
