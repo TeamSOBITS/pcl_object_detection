@@ -17,6 +17,9 @@ void ObjectDetectionTableNode::processData(const sensor_msgs::msg::PointCloud2::
     std::vector<pcl::PointIndices> cluster_indices;
     int object_num = -1;
 
+    // unsigned int num_points = cloud_msg->width;
+    // RCLCPP_INFO(this->get_logger(), "The number of points in the input pointcloud is %i", num_points);
+
     pcp_->transformFramePointCloud( cloud_msg, cloud );
     pcp_->passThroughXYZ( cloud );
     if ( use_voxel_ ) pcp_->voxelGrid( cloud, cloud );
@@ -71,8 +74,8 @@ void ObjectDetectionTableNode::activate() {
     use_voxel_ = config["use_voxel"].as<bool>(true);
     use_sobit_pro_ = config["use_sobit_pro"].as<bool>(true);
     
-    pcp_->setTargetFrame(config["base_frame_name"].as<std::string>("map"));
-    pcp_->setFlag(config["use_tf"].as<bool>(false));
+    pcp_->setTargetFrame(target_frame_);
+    pcp_->setFlag(use_tf_);
     pcp_->setPassThroughParameters(
         config["passthrough_x_min"].as<double>(-1.0), config["passthrough_x_max"].as<double>(1.0),
         config["passthrough_y_min"].as<double>(-1.0), config["passthrough_y_max"].as<double>(1.0),
@@ -101,6 +104,7 @@ void ObjectDetectionTableNode::activate() {
 
 void ObjectDetectionTableNode::deactivate() {
     this->sub_.reset();
+    this->pcp_.reset();
 
     this->pub_cloud_detection_range_.reset();
     this->pub_cloud_object_.reset();

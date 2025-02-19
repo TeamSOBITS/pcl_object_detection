@@ -14,6 +14,8 @@
 #include <yaml-cpp/yaml.h>
 #include "pcl_object_detection/point_cloud_processor.hpp"
 
+#include "rclcpp/qos.hpp"
+
 using pcl_object_detection::PointCloudProcessor;
 
 template <typename T1>
@@ -112,17 +114,28 @@ void BaseNode<T1>::setupCommonPublishers() {
 
 }
 
+
+
 template <typename T1>
 void BaseNode<T1>::setupCommonSubscribers() {
     if constexpr (std::is_same<T1, sensor_msgs::msg::PointCloud2>::value) {
         RCLCPP_INFO(this->get_logger(), "Subscribing to PointCloud2 topic: %s", pointcloud_topic_.c_str());
+
+        // QoS 設定: BEST_EFFORT に変更
+        // rclcpp::QoS qos_profile = rclcpp::QoS(rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_sensor_data));
+        rclcpp::QoS qos_profile(10);
+        qos_profile.best_effort();
+        qos_profile.durability_volatile();
+
         sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-            pointcloud_topic_, 10,
+            pointcloud_topic_, qos_profile,  // ★ QoS を指定
             [this](const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
                 this->processData(msg);
             });
     } else if constexpr (std::is_same<T1, sensor_msgs::msg::LaserScan>::value) {
         RCLCPP_INFO(this->get_logger(), "Subscribing to LaserScan topic: %s", laser_topic_.c_str());
+
+        // LaserScan の場合はデフォルトの QoS（変更なし）
         sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
             laser_topic_, 10,
             [this](const sensor_msgs::msg::LaserScan::SharedPtr msg) {

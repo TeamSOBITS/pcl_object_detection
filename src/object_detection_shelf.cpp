@@ -20,8 +20,8 @@ void ObjectDetectionShelfNode::activate() {
     pcp_.reset();
     pcp_ = std::make_shared<pcl_object_detection::PointCloudProcessor>("point_cloud_processor_3");
 
-    pcp_->setTargetFrame(config["base_frame_name"].as<std::string>("map"));
-    pcp_->setFlag(config["use_tf"].as<bool>(false));
+    pcp_->setTargetFrame(target_frame_);
+    pcp_->setFlag(use_tf_);
     pcp_->setPassThroughParameters(
         config["passthrough_x_min"].as<double>(-1.0), config["passthrough_x_max"].as<double>(1.0),
         config["passthrough_y_min"].as<double>(-1.0), config["passthrough_y_max"].as<double>(1.0),
@@ -50,6 +50,7 @@ void ObjectDetectionShelfNode::activate() {
 
 void ObjectDetectionShelfNode::deactivate() {
     this->sub_.reset();
+    this->pcp_.reset();
 
     this->pub_cloud_detection_range_.reset();
     this->pub_cloud_object_.reset();

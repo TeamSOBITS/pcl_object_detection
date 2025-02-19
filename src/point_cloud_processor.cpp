@@ -34,6 +34,7 @@ bool pcl_object_detection::PointCloudProcessor::transformFramePointCloud(
     const sensor_msgs::msg::PointCloud2::SharedPtr &input_cloud,
     pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud) {
     // Transform lookup
+    pcl::fromROSMsg(*input_cloud, *output_cloud);
     auto transform_stamped = tfBuffer_.lookupTransform(
         target_frame_, input_cloud->header.frame_id, tf2::TimePointZero);
 
@@ -41,9 +42,9 @@ bool pcl_object_detection::PointCloudProcessor::transformFramePointCloud(
     Eigen::Isometry3d transform_iso = tf2::transformToEigen(transform_stamped.transform);
     Eigen::Matrix4f transform_matrix = transform_iso.matrix().cast<float>();
 
-
     // Transform the point cloud
     pcl::transformPointCloud(*output_cloud, *output_cloud, transform_matrix);
+
     return true;
 }
 
@@ -221,14 +222,19 @@ bool PointCloudProcessor::nearestKSearch( PointCloud::Ptr input_cloud, pcl::Poin
 }
 
 bool PointCloudProcessor::ConcaveHull( const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud ) {
-    try{
-        hull_.setInputCloud(input_cloud);
-        hull_.setAlpha(0.03);
-        hull_.reconstruct(*output_cloud);
-        output_cloud->header.frame_id = input_cloud->header.frame_id;
-        return true;
-    } catch ( std::exception& ex ) {
-        RCLCPP_ERROR(this->get_logger(),"%s", ex.what());
+    if (input_cloud->width > 0){
+        try{
+            hull_.setInputCloud(input_cloud);
+            hull_.setAlpha(0.03);
+            hull_.reconstruct(*output_cloud);
+            output_cloud->header.frame_id = input_cloud->header.frame_id;
+            return true;
+        } catch ( std::exception& ex ) {
+            RCLCPP_ERROR(this->get_logger(),"%s", ex.what());
+            return false;
+        }
+    }
+    else{
         return false;
     }
 }

@@ -14,6 +14,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
+#include <unistd.h>
 
 
 class ModeManagerNode : public rclcpp::Node {

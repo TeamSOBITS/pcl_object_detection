@@ -5,6 +5,7 @@
 
 PlaceableDetectionNode::PlaceableDetectionNode(const rclcpp::NodeOptions& options) : BaseNode<sensor_msgs::msg::PointCloud2>("placeable_detection", options){
     declareCommonParameters();
+    broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 }
 
 void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg) {
@@ -47,6 +48,10 @@ void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::Sh
     // Obtain plane edges and add object point cloud
     pcp_->voxelGrid( cloud, cloud );
     pcp_->ConcaveHull( cloud_plane, cloud_plane_hull );
+
+    unsigned int num_points = cloud_plane->width;
+    RCLCPP_INFO(this->get_logger(), "The number of points in the input pointcloud is %i", num_points);
+
     *cloud = *cloud + *cloud_plane_hull;
 
     // Determine the estimated range of placement locations
@@ -103,6 +108,12 @@ void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::Sh
         transformStamped.transform.translation.y = placeable_point.y;
         transformStamped.transform.translation.z = placeable_point.z;
 
+        if (!broadcaster_) {
+            RCLCPP_ERROR(this->get_logger(), "broadcaster_ is nullptr!");
+            return;
+        }
+        
+
         broadcaster_->sendTransform(transformStamped);
     } else {
         RCLCPP_ERROR(this->get_logger(), "NO placeable_point");
@@ -147,8 +158,8 @@ void PlaceableDetectionNode::activate() {
     use_voxel_ = config["use_voxel"].as<bool>(true);
 
 
-    pcp_->setTargetFrame(config["base_frame_name"].as<std::string>("map"));
-    pcp_->setFlag(config["use_tf"].as<bool>(false));
+    pcp_->setTargetFrame(target_frame_);
+    pcp_->setFlag(use_tf_);
     pcp_->setPassThroughParameters(
         config["passthrough_x_min"].as<double>(-1.0), config["passthrough_x_max"].as<double>(1.0),
         config["passthrough_y_min"].as<double>(-1.0), config["passthrough_y_max"].as<double>(1.0),
@@ -177,6 +188,7 @@ void PlaceableDetectionNode::activate() {
 
 void PlaceableDetectionNode::deactivate() {
     this->sub_.reset();
+    this->pcp_.reset();
 
     this->pub_cloud_detection_range_.reset();
     this->pub_cloud_object_.reset();
