@@ -103,7 +103,7 @@
 | モード | 機能 |
 | --- | --- |
 | 0 | OFF |
-| 1 | line mode - [パラメータ](param/object_detection_table_param.yaml)  |
+| 1 | line mode - [パラメータ](param/line_detection_param.yaml)  |
 | 2 | table mode - [パラメータ](param/object_detection_table_param.yaml)  |
 | 3 | floor mode - [パラメータ](param/object_detection_floor_param.yaml) |
 | 4 | shelf mode - [パラメータ](param/object_detection_shelf_param.yaml) |
@@ -116,8 +116,10 @@ $ ros2 launch pcl_object_detection detection.launch.py
 ```
 
 各モードの切り替え方法（サービス通信）
+
 | サービス名 | 型 |
-| /switch_mode | sobits_interfaces/mode型 |
+| --- | --- |
+| /switch_mode | sobits_interfaces/ModeCtrl型 |
 
 <p align="right">(<a href="#readme-top">上に戻る</a>)</p>
 
