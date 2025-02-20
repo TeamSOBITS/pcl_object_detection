@@ -55,8 +55,8 @@
 
 | System | Version |
 | --- | --- |
-| Ubuntu | 20.04 (Focal Fossa) |
-| ROS    | Noetic Ninjemys |
+| Ubuntu | 22.04 |
+| ROS    | Humble |
 
 > [!NOTE]
 > `Ubuntu`や`ROS`のインストール方法に関しては，[SOBITS Manual](https://github.com/TeamSOBITS/sobits_manual#%E9%96%8B%E7%99%BA%E7%92%B0%E5%A2%83%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6)に参照してください．
@@ -109,8 +109,10 @@
 | 4 | shelf mode - [パラメータ](param/object_detection_shelf_param.yaml) |
 | 5 | placeble mode - [パラメータ](param/placeable_postion_detection_param.yaml) |
 
-<!--- 詳細は[こちら](doc/md/point_cloud_object_detection.md)． -->
+※各モードに共通するパラメータは[common_param.yaml](param/common_param.yaml)にあります 
 
+<!--- 詳細は[こちら](doc/md/point_cloud_object_detection.md)． -->
+実行方法
 ```bash
 $ ros2 launch pcl_object_detection detection.launch.py
 ```
