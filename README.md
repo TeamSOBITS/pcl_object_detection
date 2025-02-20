@@ -68,14 +68,13 @@
 
 1. ROSの`src`フォルダに移動します．
   ```bash
-  $ roscd
-  # roscdは設定によって"cd ~/catkin_ws/"のコマンドと同様
-  $ cd src/
+  $ cd colcon_ws/src/
   ```
 
 2. 本リポジトリをcloneします．
   ```bash
-  $ git clone https://github.com/TeamSOBITS/pcl_object_detection.git
+  $ git clone https://github.com/TeamSOBITS/pcl_object_detection.git]
+  $ git checkout feature/humble-devel
   ```
 
 3. 依存パッケージをインストールします．
@@ -85,8 +84,8 @@
 
 4. パッケージをコンパイルします．
   ```bash
-  $ roscd
-  $ catkin_make
+  $ cd ~/colcon_ws
+  $ colcon build
   ```
 
 <p align="right">(<a href="#readme-top">上に戻る</a>)</p>
@@ -95,7 +94,7 @@
 <!-- 実行・操作方法 -->
 ## 実行・操作方法
 
-### [point_cloud_object_detection.launch](launch/point_cloud_object_detection.launch)
+### [detection.launch.py](launch/detection.launch.py)
 
 - 机、床、棚上の物体検出と配置位置の検出をします．
 - 検出位置はトピック通信とTFで出力されます．
@@ -104,76 +103,21 @@
 | モード | 機能 |
 | --- | --- |
 | 0 | OFF |
-| 1 | table mode - [パラメータ](param/object_detection_table_param.yaml)  |
-| 2 | floor mode - [パラメータ](param/object_detection_floor_param.yaml) |
-| 3 | shelf mode - [パラメータ](param/object_detection_shelf_param.yaml) |
-| 4 | placeble mode - [パラメータ](param/placeable_postion_detection_param.yaml) |
+| 1 | line mode - [パラメータ](param/object_detection_table_param.yaml)  |
+| 2 | table mode - [パラメータ](param/object_detection_table_param.yaml)  |
+| 3 | floor mode - [パラメータ](param/object_detection_floor_param.yaml) |
+| 4 | shelf mode - [パラメータ](param/object_detection_shelf_param.yaml) |
+| 5 | placeble mode - [パラメータ](param/placeable_postion_detection_param.yaml) |
 
-- 詳細は[こちら](doc/md/point_cloud_object_detection.md)．
-
-```bash
-# rvizあり
-$ roslaunch point_cloud_object_detection point_cloud_object_detection.launch
-# rvizなし
-$ roslaunch point_cloud_object_detection point_cloud_object_detection.launch rviz:=false
-# rqt_reconfigureによるパラメータ調整
-$ roslaunch point_cloud_object_detection point_cloud_object_detection.launch rqt_reconfigure:=true
-```
-
-> [!NOTE]
-> rqt_reconfigureはパラメータを動的に変更できるが，保存はできませんので，手打ちで更新してください．
-
-<div align="center">
-    <img src="doc/img/table.png" width="1080">
-    <!-- <img src="doc/img/floor.png" width="1080"> -->
-    <!-- <img src="doc/img/placeable.png" width="1080"> -->
-</div>
-
-<p align="right">(<a href="#readme-top">上に戻る</a>)</p>
-
-
-### [line_detection.launch](launch/line_detection.launch)
-
-- 2D-LiDARセンサから得た点群から直線を検出します．
-- 詳細は[こちら](doc/md/line_detection.md)．
+<!--- 詳細は[こちら](doc/md/point_cloud_object_detection.md)． -->
 
 ```bash
-# rvizあり
-$ roslaunch point_cloud_object_detection line_detection_param.launch
-# rvizなし
-$ roslaunch point_cloud_object_detection line_detection_param.launch rviz:=false
-# rqt_reconfigureによるパラメータ調整
-$ roslaunch point_cloud_object_detection line_detection_param.launch rqt_reconfigure:=true
+$ ros2 launch pcl_object_detection detection.launch.py
 ```
 
-> [!NOTE]
-> rqt_reconfigureはパラメータを動的に変更できるが，保存はできませんので，手打ちで更新してください．
-
-<div align="center">
-    <img src="doc/img/line_detection.png" width="1080">
-</div>
-
-<p align="right">(<a href="#readme-top">上に戻る</a>)</p>
-
-
-### [demo.launch](launch/demo/demo.launch)
-
-```bash
-# TABLE_MODE
-$ roslaunch pcl_object_detection demo.launch detection_mode:=1
-# FLOOR_MODE
-$ roslaunch pcl_object_detection demo.launch detection_mode:=2
-# SHELF_MODE
-$ roslaunch pcl_object_detection demo.launch detection_mode:=3
-# PLACEABLE_POSITION
-$ roslaunch pcl_object_detection demo.launch detection_mode:=4
-# line_detection
-$ roslaunch pcl_object_detection demo_line.launch
-```
-
-<div align="center">
-    <img src="doc/img/demo_rqt_reconfigure.png" width="1080">
-</div>
+各モードの切り替え方法（サービス通信）
+| サービス名 | 型 |
+| /switch_mode | sobits_interfaces/mode型 |
 
 <p align="right">(<a href="#readme-top">上に戻る</a>)</p>
 
