@@ -1,7 +1,7 @@
 
 pointcloud_topic_name : /camera/depth_registered/points
 scan_topic_name : /scan
-# base_frame_name : base_footprint
+# base_frame_name : sobit_edu/base_footprint
 base_frame_name : camera_link
 publish_cloud_detection_range : true
 publish_cloud_object : true

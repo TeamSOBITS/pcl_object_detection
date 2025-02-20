@@ -35,6 +35,13 @@ bool pcl_object_detection::PointCloudProcessor::transformFramePointCloud(
     pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud) {
     // Transform lookup
     pcl::fromROSMsg(*input_cloud, *output_cloud);
+
+    if (!tfBuffer_.canTransform(target_frame_, input_cloud->header.frame_id, rclcpp::Time(0), std::chrono::milliseconds(500))) {
+        RCLCPP_WARN(this->get_logger(), "Waiting for transform from %s to %s...",
+                    input_cloud->header.frame_id.c_str(), target_frame_.c_str());
+        return false;
+    }    
+
     auto transform_stamped = tfBuffer_.lookupTransform(
         target_frame_, input_cloud->header.frame_id, tf2::TimePointZero);
 
@@ -54,6 +61,14 @@ bool PointCloudProcessor::transformFrameScan2D2PointCloud(const sensor_msgs::msg
     sensor_msgs::msg::PointCloud2 cloud;
 
     if (!target_frame_.empty()) {
+
+
+        if (!tfBuffer_.canTransform(target_frame_, input_scan2d->header.frame_id, rclcpp::Time(0), std::chrono::milliseconds(500))) {
+            RCLCPP_WARN(this->get_logger(), "Waiting for transform from %s to %s...",
+                        input_scan2d->header.frame_id.c_str(), target_frame_.c_str());
+            return false;
+        }
+        
         try {
             geometry_msgs::msg::TransformStamped transform =
                 tfBuffer_.lookupTransform(target_frame_, input_scan2d->header.frame_id, tf2::TimePointZero);

@@ -42,6 +42,7 @@ ModeManagerNode::~ModeManagerNode() {
 void ModeManagerNode::deactivateAllNodes() {
     RCLCPP_INFO(this->get_logger(), "Deactivating all nodes...");
     std::cout << "===============================================" << std::endl;
+    
     line_detection_node_->deactivate();
     object_detection_floor_node_->deactivate();
     object_detection_shelf_node_->deactivate();
@@ -60,8 +61,12 @@ void ModeManagerNode::switchModeCallback(
         return;
     }
 
-    deactivateAllNodes();
+    // deactivateAllNodes();
     current_mode_ = mode;
+
+    executor_->cancel();  // Executorを停止
+    deactivateAllNodes();  // すべてのノードを無効化
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     switch (mode) {
         case 0:  // 使用しない

@@ -49,14 +49,38 @@ void ObjectDetectionShelfNode::activate() {
 }
 
 void ObjectDetectionShelfNode::deactivate() {
-    this->sub_.reset();
-    this->pcp_.reset();
+    if (this->sub_) {
+        this->sub_.reset();
+        this->sub_ = nullptr;
+    }
+    if (this->pcp_) {
+        this->pcp_.reset();
+        this->pcp_ = nullptr;
+    }
 
-    this->pub_cloud_detection_range_.reset();
-    this->pub_cloud_object_.reset();
-    this->pub_pose_array_.reset();
-    this->pub_marker_.reset();
-    this->pub_line_info_.reset();
-    this->pub_cloud_line_.reset();
+    if (this->pub_cloud_detection_range_) {
+        this->pub_cloud_detection_range_.reset();
+        this->pub_cloud_detection_range_ = nullptr;
+    }
+    if (this->pub_cloud_object_) {
+        this->pub_cloud_object_.reset();
+        this->pub_cloud_object_ = nullptr;
+    }
+    if (this->pub_pose_array_) {
+        this->pub_pose_array_.reset();
+        this->pub_pose_array_ = nullptr;
+    }
+    if (this->pub_marker_) {
+        this->pub_marker_.reset();
+        this->pub_marker_ = nullptr;
+    }
+    if (this->pub_line_info_) {
+        this->pub_line_info_.reset();
+        this->pub_line_info_ = nullptr;
+    }
+    if (this->pub_cloud_line_) {
+        this->pub_cloud_line_.reset();
+        this->pub_cloud_line_ = nullptr;
+    }
     // RCLCPP_INFO(this->get_logger(), "ObjectDetectionShelfNode deactivated");
 }
