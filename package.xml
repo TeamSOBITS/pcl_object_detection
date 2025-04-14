@@ -6,9 +6,7 @@
   <description>
     The pcl_object_detection package provides components for detecting objects in point clouds.
   </description>
-
-  <maintainer email="kvalentincardenas@gmail.com">Keith Valentin</maintainer>
-
+  <maintainer email="fumiyaono.choi@gmail.com">OnoFumiya</maintainer>
   <license>BSD</license>
 
   <url type="website">https://home.soka.ac.jp/~choi/index.html</url>
@@ -21,32 +19,28 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
-
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>geometry_msgs</depend>
   <depend>laser_geometry</depend>
-  <depend>pluginlib</depend>
   <depend>pcl_conversions</depend>
   <depend>pcl_ros</depend>
-  <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
-  <depend>std_msgs</depend>
-  <depend>visualization_msgs</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
   <depend>tf2_geometry_msgs</depend>
   <depend>tf2_eigen</depend>
   <depend>sobits_interfaces</depend>
-  <exec_depend>launch</exec_depend>
-  <exec_depend>launch_ros</exec_depend>
-  <depend>yaml-cpp</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
 
   
 
-  <member_of_group>rosidl_interface_packages</member_of_group>
+  <!-- <member_of_group>rosidl_interface_packages</member_of_group> -->
 
-  <exec_depend>rosidl_default_runtime</exec_depend>
+  <!-- <exec_depend>rosidl_default_runtime</exec_depend> -->
 
   <export>
     <build_type>ament_cmake</build_type>

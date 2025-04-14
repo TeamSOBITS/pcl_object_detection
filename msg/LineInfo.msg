@@ -1,2 +1,0 @@
-float64 line_angle_deg
-float64 line_distance

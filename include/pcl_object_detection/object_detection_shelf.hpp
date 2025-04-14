@@ -1,31 +1,34 @@
 #ifndef OBJECT_DETECTION_SHELF_NODE_HPP
 #define OBJECT_DETECTION_SHELF_NODE_HPP
 
-#include "base_node.hpp"
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-#include <memory>
-#include <string>
-#include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/string.hpp"
-#include "sensor_msgs/msg/point_cloud2.hpp"
-#include <yaml-cpp/yaml.h>
-#include <pcl_conversions/pcl_conversions.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <sensor_msgs/msg/laser_scan.hpp>
+#include <vision_msgs/msg/detection3_d_array.hpp>
+#include <vision_msgs/msg/detection3_d.hpp>
+#include <vision_msgs/msg/object_hypothesis_with_pose.hpp>
+#include "point_cloud_processor.hpp"
+
+class ObjectDetectionShelfNode {
+    public:
+        rclcpp::Node::SharedPtr nd_;
+        ObjectDetectionShelfNode(std::shared_ptr<rclcpp::Node> nd);
+
+        void processData(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg);
+
+    private:
+        rclcpp::Publisher<vision_msgs::msg::Detection3DArray>::SharedPtr pub_obj_poses_;
+        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_object_cloud_;
 
 
+        pcl_object_detection::PointCloudProcessor pcp_;
 
-
-class ObjectDetectionShelfNode : public BaseNode<sensor_msgs::msg::PointCloud2> {
-public:
-    ObjectDetectionShelfNode(const rclcpp::NodeOptions& options);
-
-    void processData(const sensor_msgs::msg::PointCloud2::SharedPtr msg) override;
-    void activate() override;
-    void deactivate() override;
-
-private:
-    std::shared_ptr<pcl_object_detection::PointCloudProcessor> pcp_;
-    bool use_voxel_;
+        double x_min_;
+        double x_max_;
+        double y_min_;
+        double y_max_;
+        double z_min_;
+        double z_max_;
 };
 
 #endif // OBJECT_DETECTION_SHELF_NODE_HPP

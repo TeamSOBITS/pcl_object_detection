@@ -1,38 +1,23 @@
 #ifndef LINE_DETECTION_NODE_HPP
 #define LINE_DETECTION_NODE_HPP
 
-#include "base_node.hpp"
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-#include <Eigen/Dense>
-#include <memory>
-#include <string>
-#include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/string.hpp"
-#include "sensor_msgs/msg/point_cloud2.hpp"
-#include <yaml-cpp/yaml.h>
-
-
+#include <vision_msgs/msg/detection3_d_array.hpp>
+#include <vision_msgs/msg/detection3_d.hpp>
+#include "point_cloud_processor.hpp"
 
 class LineDetectionNode : public BaseNode<sensor_msgs::msg::LaserScan> {
-public:
-    explicit LineDetectionNode(const rclcpp::NodeOptions& options);
+    public:
+        rclcpp::Node::SharedPtr nd_;
+        LineDetectionNode(std::shared_ptr<rclcpp::Node> nd);
+        void LineDetectionNode(const rclcpp::NodeOptions& options);
 
-    void processData(const sensor_msgs::msg::LaserScan::SharedPtr msg) override;
-    void activate() override;
-    void deactivate() override;
-
-private:
-
-    bool need_marker_;
-    bool need_cloud_line_;
-    bool need_line_info_;
-
-    visualization_msgs::msg::Marker makeMarkerString(const std::string &string, double x, double y, double z);
-    std::shared_ptr<pcl_object_detection::PointCloudProcessor> pcp_;
-    std_msgs::msg::Float64 angle_deg_;
-    std_msgs::msg::Float64 distance_;
+    private:
+        std::shared_ptr<pcl_object_detection::PointCloudProcessor> pcp_;
+        // std::unique_ptr<pcl_object_detection::PointCloudProcessor> pcp_;
+        // pcl_object_detection::PointCloudProcessor pcp_;
 };
 
 #endif // LINE_DETECTION_NODE_HPP
