@@ -113,7 +113,7 @@ void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::Sh
     }
 
     if ( min_pot != 1.0 ) {
-        placeable_point.z += 0.03;
+        placeable_point.z += 0.01;
         vision_msgs::msg::Detection3D pose;
         vision_msgs::msg::ObjectHypothesisWithPose ohwp;
         ohwp.hypothesis.class_id = "placeable_point";
