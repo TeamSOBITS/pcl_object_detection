@@ -11,7 +11,7 @@ pcl_object_detection/pcl_object_detection:
     leaf_size : 0.01
 
     cluster_tolerance : 0.03
-    min_cluster_point_size : 200
+    min_cluster_point_size : 100
     max_cluster_point_size : 10000
 
     threshold_distance : 0.03

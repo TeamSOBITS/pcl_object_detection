@@ -7,6 +7,7 @@
 #include <sensor_msgs/msg/laser_scan.hpp>
 #include <vision_msgs/msg/detection3_d_array.hpp>
 #include <vision_msgs/msg/detection3_d.hpp>
+#include <vision_msgs/msg/object_hypothesis_with_pose.hpp>
 #include <geometry_msgs/msg/point.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 
@@ -64,6 +65,7 @@ namespace pcl_object_detection {
             pcl::ConcaveHull<PointT> hull_;
             pcl::EuclideanClusterExtraction<PointT> ec_;
             pcl::KdTreeFLANN<PointT> flann_;
+            pcl::RadiusOutlierRemoval<PointT> outrem_;
 
             std::string base_frame_name_;
             bool publish_cloud_detection_range_;
@@ -98,9 +100,9 @@ namespace pcl_object_detection {
             // void setFlag(const bool need_tf);
             // void setPassThroughParameters(double x_min, double x_max, double y_min, double y_max, double z_min, double z_max);
             void setVoxelGridParameter();
-            // void setClusteringParameters(float tolerance, int min_size, int max_size);
-            // void setRadiusOutlierRemovalParameters(double radius, int min_pts, bool keep_organized);
-            void setSACSegmentationParameter(int model, int method, double threshold, double probability);
+            void setClusteringParameters();
+            void setRadiusOutlierRemovalParameters(double radius, int min_pts, bool keep_organized);
+            void setSACSegmentationParameter(int model, int method);
             // void setObjectSizeParameter(double x_min, double x_max, double y_min, double y_max, double z_min, double z_max);
             // void setObjectOffsetParameter(double x_offset, double y_offset, double z_offset);
 
@@ -114,19 +116,19 @@ namespace pcl_object_detection {
             bool euclideanClusterExtraction(const PointCloud::Ptr input_cloud, std::vector<pcl::PointIndices>* output_indices);
             bool extractIndices(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud, const pcl::PointIndices::Ptr indices, bool negative);
             // bool statisticalRemoval(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud, int nr_k, double stddev_mult);
-            // bool radiusOutlierRemoval(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud);
+            bool radiusOutlierRemoval(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud);
             bool sacSegmentation(const PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr inliers, pcl::ModelCoefficients::Ptr coefficients);
             // bool radiusSearch(PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::msg::Point& search_pt, double radius, bool is_accept_add_point);
             bool nearestKSearch(PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::msg::Point& search_pt, int K = 1);
             bool ConcaveHull(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud);
-            // int principalComponentAnalysis(
-            //     const PointCloud::Ptr cloud,
-            //     const std::vector<pcl::PointIndices>& cluster_indices,
-            //     sobits_interfaces::msg::ObjectPoseArray::SharedPtr pose_array_msg,
-            //     PointCloud::Ptr cloud_object,
-            //     int init_object_id = 0);
-            // static bool compareDistance(sobits_interfaces::msg::ObjectPose &a, sobits_interfaces::msg::ObjectPose &b);
-            void sendTransform(const geometry_msgs::msg::Point target_point, const std::string &target_frame);
+            int principalComponentAnalysis(
+                const PointCloud::Ptr cloud,
+                const std::vector<pcl::PointIndices>& cluster_indices,
+                vision_msgs::msg::Detection3DArray::SharedPtr pose_array_msg,
+                PointCloud::Ptr cloud_object,
+                int init_object_id = 0);
+            static bool compareDistance(vision_msgs::msg::Detection3D &a, vision_msgs::msg::Detection3D &b);
+            void sendTransform(const geometry_msgs::msg::Pose target_point, const std::string &target_frame);
     };
 }
 

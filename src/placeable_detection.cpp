@@ -31,7 +31,6 @@ void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::Sh
     pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
     std::vector<pcl::PointIndices> cluster_indices;
 
-    RCLCPP_INFO(nd_->get_logger(), "size of cloud == %ld",cloud->points.size());
     if (!pcp_.transformFramePointCloud( cloud_msg, cloud )) return;
     pcp_.passThroughXYZ(cloud, x_min_, x_max_, y_min_, y_max_, z_min_, z_max_);
     pcp_.voxelGrid( cloud, cloud );
@@ -140,7 +139,7 @@ void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::Sh
         pose.bbox.size.z = 2 * placeable_search_interval_;
         pose.id = "placeable_point";
         pose_array->detections.push_back(pose);
-        pcp_.sendTransform(placeable_point, "placeable_point");
+        pcp_.sendTransform(pose.bbox.center, "placeable_point");
     } else {
         RCLCPP_ERROR(nd_->get_logger(), "NO Placeable Point");
     }
@@ -149,23 +148,6 @@ void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::Sh
     cloud->header.frame_id = nd_->get_parameter("base_frame_name").as_string();
     pcl_conversions::toPCL(nd_->now(), cloud_plane->header.stamp);
     pcl_conversions::toPCL(nd_->now(), cloud->header.stamp);
-
-    // if ( need_cloud_detection_range_ ) {
-    //     sensor_msgs::msg::PointCloud2 cloud_msg;
-    //     pcl::toROSMsg(*cloud_plane, cloud_msg);
-    //     cloud_msg.header.stamp = this->now();
-    //     cloud_msg.header.frame_id = target_frame_;  // 必要に応じてフレームIDを設定
-    //     pub_cloud_detection_range_->publish(cloud_msg);
-    // }
-    // if ( need_cloud_object_ ) {
-    //     sensor_msgs::msg::PointCloud2 cloud_obj_msg;
-    //     pcl::toROSMsg(*cloud, cloud_obj_msg);
-    //     cloud_obj_msg.header.stamp = this->now();
-    //     cloud_obj_msg.header.frame_id = target_frame_;  // 必要に応じてフレームIDを設定
-    //     pub_cloud_detection_range_->publish(cloud_obj_msg);
-    // }
-    // if ( need_pose_array_ ) pub_pose_array_->publish(*pose_array);
-
     
     sensor_msgs::msg::PointCloud2 cloud_plane_msg;
     pcl::toROSMsg(*cloud_plane, cloud_plane_msg);
@@ -182,11 +164,4 @@ void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::Sh
     pub_obj_poses_->publish(*pose_array);
 
     RCLCPP_INFO(nd_->get_logger(), "[PlaceablePoseDetection] Object count = %ld", cluster_indices.size());
-
-    // cloud->header.frame_id = nd_->get_parameter("base_frame_name").as_string();
-    // sensor_msgs::msg::PointCloud2 output_cloud_msg;
-    // output_cloud_msg.header.stamp = nd_->now();
-    // output_cloud_msg.header.frame_id = nd_->get_parameter("base_frame_name").as_string();
-    // pcl::toROSMsg(*cloud, output_cloud_msg);
-    // pub_placeable_cloud_->publish(output_cloud_msg);
 }

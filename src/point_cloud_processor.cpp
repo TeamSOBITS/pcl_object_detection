@@ -5,7 +5,6 @@
 using namespace pcl_object_detection;
 
 PointCloudProcessor::PointCloudProcessor(std::shared_ptr<rclcpp::Node> nd) : nd_(nd), tfBuffer_(std::make_shared<rclcpp::Clock>(RCL_ROS_TIME)), tfListener_(tfBuffer_), tfBroadcaster_(nd) {
-    tree_.reset(new pcl::search::KdTree<PointT>());
     // global parameter //
     base_frame_name_ = nd_->get_parameter("base_frame_name").as_string();
     publish_cloud_detection_range_ = nd_->get_parameter("publish_cloud_detection_range").as_bool();
@@ -31,7 +30,11 @@ PointCloudProcessor::PointCloudProcessor(std::shared_ptr<rclcpp::Node> nd) : nd_
     object_size_z_max_ = nd_->get_parameter("object_size_z_max").as_double();
     // global parameter //
 
-    setSACSegmentationParameter(pcl::SACMODEL_PLANE, pcl::SAC_RANSAC, 0.01, 0.95);
+    setSACSegmentationParameter(pcl::SACMODEL_PLANE, pcl::SAC_RANSAC);
+    setRadiusOutlierRemovalParameters( 0.05, 20, false );
+    setClusteringParameters();
+
+    tree_.reset(new pcl::search::KdTree<PointT>());
 }
 
 
@@ -61,12 +64,12 @@ bool PointCloudProcessor::transformFramePointCloud(
 }
 
 
-void pcl_object_detection::PointCloudProcessor::setSACSegmentationParameter( const int model,  const int method, const double threshold, const double probability ) {
-    seg_.setOptimizeCoefficients (true);
+void pcl_object_detection::PointCloudProcessor::setSACSegmentationParameter(const int model,  const int method) {
+    seg_.setOptimizeCoefficients(true);
     seg_.setModelType (model);
     seg_.setMethodType (method);
-    seg_.setDistanceThreshold (threshold);
-    seg_.setProbability(probability);
+    seg_.setDistanceThreshold (threshold_distance_);
+    seg_.setProbability(probability_);
     seg_.setMaxIterations(1000);
 }
 
@@ -124,7 +127,7 @@ void pcl_object_detection::PointCloudProcessor::setVoxelGridParameter() {
 }
 
 
-bool PointCloudProcessor::passThrough(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud) {
+bool pcl_object_detection::PointCloudProcessor::passThrough(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud) {
     try {
         pass_.setInputCloud(input_cloud);
         pass_.filter(*output_cloud);
@@ -142,7 +145,7 @@ void pcl_object_detection::PointCloudProcessor::setPassThroughParameters( const 
     pass_.setFilterLimits( limit_min, limit_max);
 }
 
-void PointCloudProcessor::passThroughXYZ(PointCloud::Ptr cloud, 
+void pcl_object_detection::PointCloudProcessor::passThroughXYZ(PointCloud::Ptr cloud, 
                                         double x_min, double x_max, 
                                         double y_min, double y_max, 
                                         double z_min, double z_max) {
@@ -164,7 +167,13 @@ void pcl_object_detection::PointCloudProcessor::setSACPlaneParameter( const std:
     seg_.setEpsAngle( eps_angle_degree * (M_PI/180.0f) ); // plane can be within eps_angle_degree degrees of plane
 }
 
-bool PointCloudProcessor::voxelGrid(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud) {
+void pcl_object_detection::PointCloudProcessor::setRadiusOutlierRemovalParameters ( const double radius, const int min_pts, const bool keep_organized ) {
+    outrem_.setRadiusSearch( radius );
+    outrem_.setMinNeighborsInRadius ( min_pts );
+    outrem_.setKeepOrganized( keep_organized );
+}
+
+bool pcl_object_detection::PointCloudProcessor::voxelGrid(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud) {
     if (!use_voxel_) return true;
     try {
         voxel_.setInputCloud(input_cloud);
@@ -177,7 +186,7 @@ bool PointCloudProcessor::voxelGrid(const PointCloud::Ptr input_cloud, PointClou
     }
 }
 
-bool PointCloudProcessor::euclideanClusterExtraction(const PointCloud::Ptr input_cloud, std::vector<pcl::PointIndices> *output_indices) {
+bool pcl_object_detection::PointCloudProcessor::euclideanClusterExtraction(const PointCloud::Ptr input_cloud, std::vector<pcl::PointIndices> *output_indices) {
     try {
         tree_->setInputCloud(input_cloud);
         ec_.setInputCloud(input_cloud);
@@ -189,7 +198,14 @@ bool PointCloudProcessor::euclideanClusterExtraction(const PointCloud::Ptr input
     }
 }
 
-bool PointCloudProcessor::extractIndices(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud, const pcl::PointIndices::Ptr indices, bool negative) {
+void pcl_object_detection::PointCloudProcessor::setClusteringParameters () {
+    ec_.setClusterTolerance( cluster_tolerance_ );
+    ec_.setMinClusterSize( min_cluster_point_size_ );
+    ec_.setMaxClusterSize( max_cluster_point_size_ );
+    ec_.setSearchMethod( tree_ );
+}
+
+bool pcl_object_detection::PointCloudProcessor::extractIndices(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud, const pcl::PointIndices::Ptr indices, bool negative) {
     try {
         extract_.setInputCloud(input_cloud);
         extract_.setIndices(indices);
@@ -203,19 +219,19 @@ bool PointCloudProcessor::extractIndices(const PointCloud::Ptr input_cloud, Poin
     }
 }
 
-// bool PointCloudProcessor::radiusOutlierRemoval(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud) {
-//     try {
-//         outrem_.setInputCloud(input_cloud);
-//         outrem_.filter(*output_cloud);
-//         output_cloud->header.frame_id = input_cloud->header.frame_id;
-//         return true;
-//     } catch (const std::exception &ex) {
-//         RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
-//         return false;
-//     }
-// }
+bool pcl_object_detection::PointCloudProcessor::radiusOutlierRemoval(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud) {
+    try {
+        outrem_.setInputCloud(input_cloud);
+        outrem_.filter(*output_cloud);
+        output_cloud->header.frame_id = input_cloud->header.frame_id;
+        return true;
+    } catch (const std::exception &ex) {
+        RCLCPP_ERROR(nd_->get_logger(), "%s", ex.what());
+        return false;
+    }
+}
 
-bool PointCloudProcessor::sacSegmentation(const PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr inliers, pcl::ModelCoefficients::Ptr coefficients) {
+bool pcl_object_detection::PointCloudProcessor::sacSegmentation(const PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr inliers, pcl::ModelCoefficients::Ptr coefficients) {
     try {
         seg_.setInputCloud(input_cloud);
         seg_.segment(*inliers, *coefficients);
@@ -255,7 +271,7 @@ bool PointCloudProcessor::sacSegmentation(const PointCloud::Ptr input_cloud, pcl
 //     }
 // }
 
-bool PointCloudProcessor::nearestKSearch( PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::msg::Point& search_pt, const int K ) {
+bool pcl_object_detection::PointCloudProcessor::nearestKSearch( PointCloud::Ptr input_cloud, pcl::PointIndices::Ptr output_indices, const geometry_msgs::msg::Point& search_pt, const int K ) {
     try{
         bool is_match = false;
         PointT searchPoint;
@@ -277,7 +293,7 @@ bool PointCloudProcessor::nearestKSearch( PointCloud::Ptr input_cloud, pcl::Poin
     }
 }
 
-bool PointCloudProcessor::ConcaveHull( const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud ) {
+bool pcl_object_detection::PointCloudProcessor::ConcaveHull( const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud ) {
     if (input_cloud->width > 0){
         try{
             hull_.setInputCloud(input_cloud);
@@ -295,97 +311,105 @@ bool PointCloudProcessor::ConcaveHull( const PointCloud::Ptr input_cloud, PointC
     }
 }
 
+bool pcl_object_detection::PointCloudProcessor::compareDistance(vision_msgs::msg::Detection3D &a, vision_msgs::msg::Detection3D &b) {
+    double a_dist = std::hypotf( a.results[0].pose.pose.position.x,  a.results[0].pose.pose.position.y );
+    double b_dist = std::hypotf( b.results[0].pose.pose.position.x,  b.results[0].pose.pose.position.y );
+    return a_dist < b_dist; //近い順
+}
 
-void PointCloudProcessor::sendTransform(const geometry_msgs::msg::Point target_point, const std::string &target_frame) {
+void pcl_object_detection::PointCloudProcessor::sendTransform(const geometry_msgs::msg::Pose target_pose, const std::string &target_frame) {
     geometry_msgs::msg::TransformStamped transformStamped;
     transformStamped.header.stamp = nd_->now();
     transformStamped.header.frame_id = base_frame_name_;
     transformStamped.child_frame_id = target_frame;
-    transformStamped.transform.translation.x = target_point.x;
-    transformStamped.transform.translation.y = target_point.y;
-    transformStamped.transform.translation.z = target_point.z;
+    transformStamped.transform.translation.x = target_pose.position.x;
+    transformStamped.transform.translation.y = target_pose.position.y;
+    transformStamped.transform.translation.z = target_pose.position.z;
+    transformStamped.transform.rotation.x = target_pose.orientation.x;
+    transformStamped.transform.rotation.y = target_pose.orientation.y;
+    transformStamped.transform.rotation.z = target_pose.orientation.z;
+    transformStamped.transform.rotation.w = target_pose.orientation.w;
 
     tfBroadcaster_.sendTransform(transformStamped);
 }
 
-// int PointCloudProcessor::principalComponentAnalysis(
-//     const PointCloud::Ptr cloud,
-//     const std::vector<pcl::PointIndices>& cluster_indices,
-//     sobits_interfaces::msg::ObjectPoseArray::SharedPtr pose_array_msg,
-//     PointCloud::Ptr cloud_object,
-//     const int init_object_id )
-// {
-//     ObjectSizeParameter obj_size = obj_param;
-//     std::string target_frame = base_frame_name_;
-//     bool need_tf = need_tf_;
-//     for ( auto& cluster : cluster_indices ) {
-//         Eigen::Vector4f pca_centroid;
-//         pcl::compute3DCentroid( *cloud, cluster, pca_centroid );
-//         // Ref : https://programmersought.com/article/88204491934/
-//         Eigen::Matrix3f covariance;
-//         pcl::computeCovarianceMatrixNormalized(*cloud, pca_centroid, covariance); // Computes the normalized 3x3 covariance matrix (variance-covariance matrix)
-//         Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance, Eigen::ComputeEigenvectors); // Find eigenvalues and eigenvectors
-//         Eigen::Matrix3f eigen_vectors_pca = eigen_solver.eigenvectors(); // eigenvector
-//         //Eigen::Vector3f eigen_values_pca = eigen_solver.eigenvalues();   // eigenvalue
+int PointCloudProcessor::principalComponentAnalysis(
+    const PointCloud::Ptr cloud,
+    const std::vector<pcl::PointIndices>& cluster_indices,
+    vision_msgs::msg::Detection3DArray::SharedPtr pose_array_msg,
+    PointCloud::Ptr cloud_object,
+    const int init_object_id )
+{
+    for ( auto& cluster : cluster_indices ) {
+        Eigen::Vector4f pca_centroid;
+        pcl::compute3DCentroid( *cloud, cluster, pca_centroid );
+        // Ref : https://programmersought.com/article/88204491934/
+        Eigen::Matrix3f covariance;
+        pcl::computeCovarianceMatrixNormalized(*cloud, pca_centroid, covariance); // Computes the normalized 3x3 covariance matrix (variance-covariance matrix)
+        Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance, Eigen::ComputeEigenvectors); // Find eigenvalues and eigenvectors
+        Eigen::Matrix3f eigen_vectors_pca = eigen_solver.eigenvectors(); // eigenvector
+        //Eigen::Vector3f eigen_values_pca = eigen_solver.eigenvalues();   // eigenvalue
 
-//         Eigen::Matrix4f transform(Eigen::Matrix4f::Identity());
-//         transform.block<3, 3>(0, 0) = eigen_vectors_pca.transpose();
-//         transform.block<3, 1>(0, 3) = -1.0f * (transform.block<3,3>(0,0)) * (pca_centroid.head<3>());//
+        Eigen::Matrix4f transform(Eigen::Matrix4f::Identity());
+        transform.block<3, 3>(0, 0) = eigen_vectors_pca.transpose();
+        transform.block<3, 1>(0, 3) = -1.0f * (transform.block<3,3>(0,0)) * (pca_centroid.head<3>());//
 
-//         PointCloud::Ptr cloud_transformed(new PointCloud() );
-//         pcl::transformPointCloud(*cloud, cluster, *cloud_transformed, transform); // Rotation with eigenvectors
-//         Eigen::Vector4f min_pt, max_pt;
-//         pcl::getMinMax3D( *cloud_transformed, min_pt, max_pt);
-//         Eigen::Vector4f cluster_size = max_pt - min_pt;
-//         if ( cluster_size.x() < obj_size.x_min || cluster_size.x() > obj_size.x_max ) continue;
-//         if ( cluster_size.y() < obj_size.y_min || cluster_size.y() > obj_size.y_max ) continue;
-//         if ( cluster_size.z() < obj_size.z_min || cluster_size.z() > obj_size.z_max ) continue;
-//         for ( auto& i : cluster.indices ) cloud_object->points.push_back(cloud->points[i]);
+        PointCloud::Ptr cloud_transformed(new PointCloud() );
+        pcl::transformPointCloud(*cloud, cluster, *cloud_transformed, transform); // Rotation with eigenvectors
+        Eigen::Vector4f min_pt, max_pt;
+        pcl::getMinMax3D( *cloud_transformed, min_pt, max_pt);
+        Eigen::Vector4f cluster_size = max_pt - min_pt;
+        if ( cluster_size.x() < object_size_x_min_ || cluster_size.x() > object_size_x_max_ ) continue;
+        if ( cluster_size.y() < object_size_y_min_ || cluster_size.y() > object_size_y_max_ ) continue;
+        if ( cluster_size.z() < object_size_z_min_ || cluster_size.z() > object_size_z_max_ ) continue;
+        for ( auto& i : cluster.indices ) cloud_object->points.push_back(cloud->points[i]);
 
-//         // double roll = std::atan2( eigen_vectors_pca(1, 0), eigen_vectors_pca(2, 0) );
-//         // double pitch = std::atan2( eigen_vectors_pca(2, 0), eigen_vectors_pca(0, 0) );
-//         double yaw = std::atan2( eigen_vectors_pca(1, 0), eigen_vectors_pca(0, 0) ) + M_PI;
+        // double roll = std::atan2( eigen_vectors_pca(1, 0), eigen_vectors_pca(2, 0) );
+        // double pitch = std::atan2( eigen_vectors_pca(2, 0), eigen_vectors_pca(0, 0) );
+        double yaw = std::atan2( eigen_vectors_pca(1, 0), eigen_vectors_pca(0, 0) ) + M_PI;
 
-//         sobits_interfaces::msg::ObjectPose pose;
-//         pose.pose.position.x = pca_centroid(0)+obj_size.x_offset;
-//         pose.pose.position.y = pca_centroid(1)+obj_size.y_offset;
-//         pose.pose.position.z = pca_centroid(2)+obj_size.z_offset;
-//         pose.pose.orientation.x = 0;
-//         pose.pose.orientation.y = 0;
-//         pose.pose.orientation.z = sin(yaw / 2);
-//         pose.pose.orientation.w = cos(yaw / 2);
-//         pose_array_msg->object_poses.push_back(pose);
-//     }
-//     std::sort(pose_array_msg->object_poses.begin(), pose_array_msg->object_poses.end(), PointCloudProcessor::compareDistance);
+        // sobits_interfaces::msg::ObjectPose pose;
+        vision_msgs::msg::Detection3D pose;
+        vision_msgs::msg::ObjectHypothesisWithPose ohwp;
+        // ohwp.hypothesis.class_id = "OBJECT_TF";
+        ohwp.hypothesis.score = 1.0;
+        ohwp.pose.pose.position.x = pca_centroid(0);
+        ohwp.pose.pose.position.y = pca_centroid(1);
+        ohwp.pose.pose.position.z = pca_centroid(2);
+        ohwp.pose.pose.orientation.x = 0.;
+        ohwp.pose.pose.orientation.y = 0.;
+        ohwp.pose.pose.orientation.z = sin(yaw / 2);
+        ohwp.pose.pose.orientation.w = cos(yaw / 2);
+        pose.header.stamp = nd_->now();
+        pose.header.frame_id = base_frame_name_;
+        pose.results.push_back(ohwp);
+        pose.bbox.center.position.x = pca_centroid(0);
+        pose.bbox.center.position.y = pca_centroid(1);
+        pose.bbox.center.position.z = pca_centroid(2);
+        pose.bbox.center.orientation.x = 0.;
+        pose.bbox.center.orientation.y = 0.;
+        pose.bbox.center.orientation.z = sin(yaw / 2);
+        pose.bbox.center.orientation.w = cos(yaw / 2);
+        pose.bbox.size.x = cluster_size.x();
+        pose.bbox.size.y = cluster_size.y();
+        pose.bbox.size.z = cluster_size.z();
+        // pose.id = "OBJECT_TF";
+        pose_array_msg->detections.push_back(pose);
+    }
+    std::sort(pose_array_msg->detections.begin(), pose_array_msg->detections.end(), compareDistance);
 
-//     int object_id = init_object_id;
-//     for ( auto& pose : pose_array_msg->object_poses ) {
-//         pose.class_name = "object_" + std::to_string(object_id);
-//         pose.detect_id = object_id;
-//         if ( need_tf ) {
-//             tf2::Transform tf_transform;
-//             tf_transform.setOrigin( tf2::Vector3( pose.pose.position.x, pose.pose.position.y, pose.pose.position.z ) );
+    int object_id = init_object_id;
+    for ( auto& pose : pose_array_msg->detections ) {
+        pose.id                             = "object_" + std::to_string(object_id);
+        pose.results[0].hypothesis.class_id = "object_" + std::to_string(object_id);
+        sendTransform(pose.bbox.center, "object_" + std::to_string(object_id));
+        object_id++;
+    }
 
-//             tf2::Quaternion quat_tf;
-//             fromMsg(pose.pose.orientation, quat_tf);
-//             // quaternionMsgToTF(pose.pose.orientation , quat_tf);
-//             tf_transform.setRotation( quat_tf );
-
-//             geometry_msgs::msg::TransformStamped tf_msg;
-//             tf_msg.transform = tf2::toMsg(tf_transform);
-//             tf_msg.header.stamp = this->get_clock()->now();
-//             tf_msg.header.frame_id = base_frame_name_;
-//             tf_msg.child_frame_id = pose.class_name;
-//             tfBroadcaster_->sendTransform(tf_msg);
-//             // tfBroadcaster_.sendTransform( tf::StampedTransform ( tf_transform, ros::Time::now(), base_frame_name_, pose.Class ));
-//         }
-//         object_id++;
-//     }
-
-//     cloud_object->header.frame_id = cloud->header.frame_id;
-//     pose_array_msg->header.frame_id = cloud->header.frame_id;
-//     pose_array_msg->header.stamp = this->get_clock()->now();
-//     pcl_conversions::toPCL(this->get_clock()->now(), cloud_object->header.stamp);
-//     return  ( object_id == init_object_id ) ? -1 : object_id;
-// }
+    cloud_object->header.frame_id = cloud->header.frame_id;
+    pose_array_msg->header.frame_id = cloud->header.frame_id;
+    pose_array_msg->header.stamp = nd_->now();
+    pcl_conversions::toPCL(nd_->now(), cloud_object->header.stamp);
+    return  ( object_id == init_object_id ) ? -1 : object_id;
+}
 
