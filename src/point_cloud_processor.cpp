@@ -30,7 +30,7 @@ PointCloudProcessor::PointCloudProcessor(std::shared_ptr<rclcpp::Node> nd) : nd_
     object_size_z_max_ = nd_->get_parameter("object_size_z_max").as_double();
     // global parameter //
 
-    setSACSegmentationParameter(pcl::SACMODEL_PLANE, pcl::SAC_RANSAC);
+    setSACSegmentationParameter(pcl::SACMODEL_PERPENDICULAR_PLANE, pcl::SAC_RANSAC);
     setRadiusOutlierRemovalParameters( 0.05, 20, false );
     setClusteringParameters();
 
