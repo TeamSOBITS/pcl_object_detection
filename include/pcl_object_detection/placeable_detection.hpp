@@ -15,6 +15,14 @@ class PlaceableDetectionNode {
         PlaceableDetectionNode(std::shared_ptr<rclcpp::Node> nd);
 
         void processData(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg);
+        void setx_min(double x_min);
+        void setx_max(double x_max);
+        void sety_min(double y_min);
+        void sety_max(double y_max);
+        void setz_min(double z_min);
+        void setz_max(double z_max);
+        void set_obstacle_tolerance(double obstacle_tolerance);
+        void set_placeable_search_interval(double placeable_search_interval);
 
     private:
         rclcpp::Publisher<vision_msgs::msg::Detection3DArray>::SharedPtr pub_obj_poses_;

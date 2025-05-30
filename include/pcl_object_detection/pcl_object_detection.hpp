@@ -26,6 +26,7 @@ class PCLNode {
 
         rclcpp::Service<sobits_interfaces::srv::ModeCtrl>::SharedPtr mode_service_;
         rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_points_;
+        rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_param_cb_handle_;
 
         PCLNode(std::shared_ptr<rclcpp::Node> nd);
 
@@ -33,6 +34,7 @@ class PCLNode {
         void switchModeCallback(const std::shared_ptr<sobits_interfaces::srv::ModeCtrl::Request>  request,
                                       std::shared_ptr<sobits_interfaces::srv::ModeCtrl::Response> response);
 
+        rcl_interfaces::msg::SetParametersResult onParameterChange(const std::vector<rclcpp::Parameter> &parameters);
         // 各機能ノード
         std::shared_ptr<ObjectDetectionFloorNode> object_detection_floor_node_;
         std::shared_ptr<ObjectDetectionShelfNode> object_detection_shelf_node_;

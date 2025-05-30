@@ -165,3 +165,36 @@ void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::Sh
 
     RCLCPP_INFO(nd_->get_logger(), "[PlaceablePoseDetection] Object count = %ld", cluster_indices.size());
 }
+
+void PlaceableDetectionNode::setx_min(double x_min) {
+    x_min_ = x_min;
+    RCLCPP_INFO(nd_->get_logger(), "[PlaceableDetectionNode] x_min updated to: %f", x_min);
+}
+void PlaceableDetectionNode::setx_max(double x_max) {
+    x_max_ = x_max;
+    RCLCPP_INFO(nd_->get_logger(), "[PlaceableDetectionNode] x_max updated to: %f", x_max);
+}
+void PlaceableDetectionNode::sety_min(double y_min) {
+    y_min_ = y_min;
+    RCLCPP_INFO(nd_->get_logger(), "[PlaceableDetectionNode] y_min updated to: %f", y_min);
+}
+void PlaceableDetectionNode::sety_max(double y_max) {
+    y_max_ = y_max;
+    RCLCPP_INFO(nd_->get_logger(), "[PlaceableDetectionNode] y_max updated to: %f", y_max);
+}
+void PlaceableDetectionNode::setz_min(double z_min) {
+    z_min_ = z_min;
+    RCLCPP_INFO(nd_->get_logger(), "[PlaceableDetectionNode] z_min updated to: %f", z_min);
+}
+void PlaceableDetectionNode::setz_max(double z_max) {
+    z_max_ = z_max;
+    RCLCPP_INFO(nd_->get_logger(), "[PlaceableDetectionNode] z_max updated to: %f", z_max);
+}
+void PlaceableDetectionNode::set_obstacle_tolerance(double obstacle_tolerance) {
+    obstacle_tolerance_ = obstacle_tolerance;
+    RCLCPP_INFO(nd_->get_logger(), "[PlaceableDetectionNode] obstacle_tolerance updated to: %f", obstacle_tolerance);
+}
+void PlaceableDetectionNode::set_placeable_search_interval(double placeable_search_interval) {
+    placeable_search_interval_ = placeable_search_interval;
+    RCLCPP_INFO(nd_->get_logger(), "[PlaceableDetectionNode] placeable_search_interval updated to: %f", placeable_search_interval);
+}

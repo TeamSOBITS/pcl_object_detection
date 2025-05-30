@@ -92,6 +92,10 @@ PCLNode::PCLNode(std::shared_ptr<rclcpp::Node> nd) : nd_(nd), qos_profile_(1) {
     request->mode = nd_->get_parameter("initial_mode").as_int();
     switchModeCallback(request, response);
     RCLCPP_INFO(nd_->get_logger(), "Wait for server...");
+
+    on_set_param_cb_handle_ = nd_->add_on_set_parameters_callback(
+        std::bind(&PCLNode::onParameterChange, this, std::placeholders::_1));
+        
     rclcpp::spin(nd_);
 }
 
@@ -144,6 +148,44 @@ void PCLNode::switchModeCallback(
         RCLCPP_ERROR(nd_->get_logger(), "Failed to switch mode");
     }
     return;
+}
+
+rcl_interfaces::msg::SetParametersResult PCLNode::onParameterChange(
+    const std::vector<rclcpp::Parameter> &parameters)
+{
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+    result.reason = "success";
+
+    for (const auto &param : parameters) {
+        if (param.get_name() == "placeable.passthrough_x_min") {
+            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.passthrough_x_min: %f", param.as_double());
+            placeable_detection_node_->setx_min(param.as_double());
+        } else if (param.get_name() == "placeable.passthrough_x_max") {
+            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.passthrough_x_max: %f", param.as_double());
+            placeable_detection_node_->setx_max(param.as_double());
+        } else if (param.get_name() == "placeable.passthrough_y_min") {
+            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.passthrough_y_min: %f", param.as_double());
+            placeable_detection_node_->sety_min(param.as_double());
+        } else if (param.get_name() == "placeable.passthrough_y_max") {
+            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.passthrough_y_max: %f", param.as_double());
+            placeable_detection_node_->sety_max(param.as_double());
+        } else if (param.get_name() == "placeable.passthrough_z_min") {
+            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.passthrough_z_min: %f", param.as_double());
+            placeable_detection_node_->setz_min(param.as_double());
+        } else if (param.get_name() == "placeable.passthrough_z_max") {
+            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.passthrough_z_max: %f", param.as_double());
+            placeable_detection_node_->setz_max(param.as_double());
+        } else if (param.get_name() == "placeable.obstacle_tolerance") {
+            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.obstacle_tolerance: %f", param.as_double());
+            placeable_detection_node_->set_obstacle_tolerance(param.as_double());
+        } else if (param.get_name() == "placeable.placeable_search_interval") {
+            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.placeable_search_interval: %f", param.as_double());
+            placeable_detection_node_->set_placeable_search_interval(param.as_double());
+        }
+    }
+
+    return result;
 }
 
 int main(int argc, char** argv) {
