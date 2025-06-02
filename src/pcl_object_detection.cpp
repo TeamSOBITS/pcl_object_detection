@@ -158,31 +158,7 @@ rcl_interfaces::msg::SetParametersResult PCLNode::onParameterChange(
     result.reason = "success";
 
     for (const auto &param : parameters) {
-        if (param.get_name() == "placeable.passthrough_x_min") {
-            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.passthrough_x_min: %f", param.as_double());
-            placeable_detection_node_->setx_min(param.as_double());
-        } else if (param.get_name() == "placeable.passthrough_x_max") {
-            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.passthrough_x_max: %f", param.as_double());
-            placeable_detection_node_->setx_max(param.as_double());
-        } else if (param.get_name() == "placeable.passthrough_y_min") {
-            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.passthrough_y_min: %f", param.as_double());
-            placeable_detection_node_->sety_min(param.as_double());
-        } else if (param.get_name() == "placeable.passthrough_y_max") {
-            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.passthrough_y_max: %f", param.as_double());
-            placeable_detection_node_->sety_max(param.as_double());
-        } else if (param.get_name() == "placeable.passthrough_z_min") {
-            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.passthrough_z_min: %f", param.as_double());
-            placeable_detection_node_->setz_min(param.as_double());
-        } else if (param.get_name() == "placeable.passthrough_z_max") {
-            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.passthrough_z_max: %f", param.as_double());
-            placeable_detection_node_->setz_max(param.as_double());
-        } else if (param.get_name() == "placeable.obstacle_tolerance") {
-            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.obstacle_tolerance: %f", param.as_double());
-            placeable_detection_node_->set_obstacle_tolerance(param.as_double());
-        } else if (param.get_name() == "placeable.placeable_search_interval") {
-            RCLCPP_INFO(nd_->get_logger(), "Updated placeable.placeable_search_interval: %f", param.as_double());
-            placeable_detection_node_->set_placeable_search_interval(param.as_double());
-        }
+        RCLCPP_INFO_STREAM(nd_->get_logger(), "Updated " << param.get_name() << " : " << param.as_double());
     }
 
     return result;
