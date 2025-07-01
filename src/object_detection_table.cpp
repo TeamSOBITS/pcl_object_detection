@@ -5,12 +5,12 @@ ObjectDetectionTableNode::ObjectDetectionTableNode(std::shared_ptr<rclcpp::Node>
     pub_object_cloud_ = nd_->create_publisher<sensor_msgs::msg::PointCloud2>("cloud_object", 1);
 
 
-    x_min_ = nd_->get_parameter("table.passthrough_x_min").as_double();
-    x_max_ = nd_->get_parameter("table.passthrough_x_max").as_double();
-    y_min_ = nd_->get_parameter("table.passthrough_y_min").as_double();
-    y_max_ = nd_->get_parameter("table.passthrough_y_max").as_double();
-    z_min_ = nd_->get_parameter("table.passthrough_z_min").as_double();
-    z_max_ = nd_->get_parameter("table.passthrough_z_max").as_double();
+    // x_min_ = nd_->get_parameter("table.passthrough_x_min").as_double();
+    // x_max_ = nd_->get_parameter("table.passthrough_x_max").as_double();
+    // y_min_ = nd_->get_parameter("table.passthrough_y_min").as_double();
+    // y_max_ = nd_->get_parameter("table.passthrough_y_max").as_double();
+    // z_min_ = nd_->get_parameter("table.passthrough_z_min").as_double();
+    // z_max_ = nd_->get_parameter("table.passthrough_z_max").as_double();
 }
 
 void ObjectDetectionTableNode::processData(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg) {
@@ -28,7 +28,13 @@ void ObjectDetectionTableNode::processData(const sensor_msgs::msg::PointCloud2::
     int object_num = -1;
 
     if (!pcp_.transformFramePointCloud( cloud_msg, cloud )) return;
-    pcp_.passThroughXYZ(cloud, x_min_, x_max_, y_min_, y_max_, z_min_, z_max_);
+    pcp_.passThroughXYZ(cloud, 
+                        nd_->get_parameter("table.passthrough_x_min").as_double(),
+                        nd_->get_parameter("table.passthrough_x_max").as_double(),
+                        nd_->get_parameter("table.passthrough_y_min").as_double(),
+                        nd_->get_parameter("table.passthrough_y_max").as_double(),
+                        nd_->get_parameter("table.passthrough_z_min").as_double(),
+                        nd_->get_parameter("table.passthrough_z_max").as_double());
     pcp_.voxelGrid( cloud, cloud );
 
     pcp_.setSACPlaneParameter( "z",  5.0 );

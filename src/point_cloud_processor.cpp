@@ -33,6 +33,7 @@ PointCloudProcessor::PointCloudProcessor(std::shared_ptr<rclcpp::Node> nd) : nd_
     setSACSegmentationParameter(pcl::SACMODEL_PERPENDICULAR_PLANE, pcl::SAC_RANSAC);
     setRadiusOutlierRemovalParameters( 0.05, 20, false );
     setClusteringParameters();
+    setVoxelGridParameter();
 
     tree_.reset(new pcl::search::KdTree<PointT>());
 }

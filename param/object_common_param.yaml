@@ -7,7 +7,7 @@ pcl_object_detection/pcl_object_detection:
     publish_pose_array : true
     use_tf : true
 
-    use_voxel : false
+    use_voxel : True
     leaf_size : 0.01
 
     cluster_tolerance : 0.03

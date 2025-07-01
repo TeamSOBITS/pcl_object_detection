@@ -45,15 +45,13 @@ void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::Sh
     if (!pcp_.sacSegmentation( cloud, inliers, coefficients )) return;
     pcp_.extractIndices( cloud, cloud_plane, inliers, false );
     pcp_.extractIndices( cloud, cloud, inliers, true );
-    pcp_.setVoxelGridParameter(); // 0.01
-    pcp_.voxelGrid( cloud_plane, cloud_plane );
 
     Eigen::Vector4f centroid, min_pt, max_pt;
     pcl::compute3DCentroid( *cloud_plane, centroid );
     pcp_.setPassThroughParameters( "z", centroid.z(), centroid.z()+0.4 );
     pcp_.passThrough( cloud, cloud );
-    pcp_.setPassThroughParameters( "x", 0.0, max_pt.x() );
-    pcp_.passThrough( cloud, cloud );
+    // pcp_.setPassThroughParameters( "x", 0.0, centroid.x() );
+    // pcp_.passThrough( cloud, cloud );
     // pcl::getMinMax3D( *cloud_plane, min_pt, max_pt);
     // if ( use_sobit_pro_ ) {
     //     pcp_->setPassThroughParameters( "y", 0.0, max_pt.y() );
@@ -64,19 +62,19 @@ void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::Sh
     // }
 
     // Check the number of objects
-    pcp_.euclideanClusterExtraction ( cloud, &cluster_indices );
+    // pcp_.euclideanClusterExtraction ( cloud, &cluster_indices );
     // int object_num = cluster_indices.size();
 
     // Obtain plane edges and add object point cloud
-    pcp_.voxelGrid( cloud, cloud );
-    pcp_.ConcaveHull( cloud_plane, cloud_plane_hull );
+    // pcp_.voxelGrid( cloud, cloud );
+    // pcp_.ConcaveHull( cloud_plane, cloud_plane_hull );
 
-    *cloud = *cloud + *cloud_plane_hull;
+    // *cloud = *cloud + *cloud_plane_hull;
 
     // Determine the estimated range of placement locations
-    pcp_.setPassThroughParameters( "x", centroid.x() - 0.35, centroid.x() );
+    pcp_.setPassThroughParameters( "x", centroid.x() - 0.3, centroid.x() + 0.3 );
     pcp_.passThrough( cloud_plane, cloud_plane );
-    pcp_.setPassThroughParameters( "y", centroid.y() - 0.35, centroid.y() + 0.35 );
+    pcp_.setPassThroughParameters( "y", centroid.y() - 0.3, centroid.y() + 0.3 );
     pcp_.passThrough( cloud_plane, cloud_plane );
     // if ( use_sobit_pro_ ) {
     //     pcp_->setPassThroughParameters( "x", centroid.x() - 0.35, centroid.x() + 0.35 );
@@ -96,8 +94,8 @@ void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::Sh
     double min_pot = 1.0, potential = 0.0;
 
     geometry_msgs::msg::Point obs_pt;
-    for ( double x = max_pt.x() - 0.05; x > min_pt.x() + 0.05; x -= nd_->get_parameter("placeable.placeable_search_interval").as_double()) {
-        for ( double y = max_pt.y() - 0.05; y > min_pt.y() + 0.05; y -= nd_->get_parameter("placeable.placeable_search_interval").as_double()) {
+    for ( double x = max_pt.x() - 0.1; x > min_pt.x() + 0.1; x -= nd_->get_parameter("placeable.placeable_search_interval").as_double()) {
+        for ( double y = max_pt.y() - 0.1; y > min_pt.y() + 0.1; y -= nd_->get_parameter("placeable.placeable_search_interval").as_double()) {
             geometry_msgs::msg::Point search_pt;
             pcl::PointIndices::Ptr nearest_inliers (new pcl::PointIndices);
             search_pt.x = x;
@@ -169,5 +167,6 @@ void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::Sh
 
     pub_obj_poses_->publish(*pose_array);
 
-    RCLCPP_INFO(nd_->get_logger(), "[PlaceablePoseDetection] Object count = %ld", cluster_indices.size());
+    RCLCPP_INFO(nd_->get_logger(), "Placeable Point found!!");
+    // RCLCPP_INFO(nd_->get_logger(), "[PlaceablePoseDetection] Object count = %ld", cluster_indices.size());
 }
