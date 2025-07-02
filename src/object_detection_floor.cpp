@@ -42,7 +42,7 @@ void ObjectDetectionFloorNode::processData(const sensor_msgs::msg::PointCloud2::
 
     Eigen::Vector4f centroid;
     pcl::compute3DCentroid( *cloud, centroid );
-    pcp_.setPassThroughParameters( "z", centroid.z()+0.01, z_max_ );
+    pcp_.setPassThroughParameters( "z", centroid.z()+0.01, nd_->get_parameter("table.passthrough_z_max").as_double() );
     pcp_.passThrough( cloud, cloud );
 
     pcp_.radiusOutlierRemoval( cloud, cloud );

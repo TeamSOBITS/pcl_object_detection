@@ -6,4 +6,4 @@ pcl_object_detection/pcl_object_detection:
       passthrough_y_min : -2.5
       passthrough_y_max : 2.5
       passthrough_z_min : 0.2
-      passthrough_z_max : 1.0
+      passthrough_z_max : 1.5

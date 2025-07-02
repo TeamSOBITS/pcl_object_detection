@@ -28,6 +28,7 @@ void ObjectDetectionTableNode::processData(const sensor_msgs::msg::PointCloud2::
     int object_num = -1;
 
     if (!pcp_.transformFramePointCloud( cloud_msg, cloud )) return;
+
     pcp_.passThroughXYZ(cloud, 
                         nd_->get_parameter("table.passthrough_x_min").as_double(),
                         nd_->get_parameter("table.passthrough_x_max").as_double(),
@@ -36,14 +37,13 @@ void ObjectDetectionTableNode::processData(const sensor_msgs::msg::PointCloud2::
                         nd_->get_parameter("table.passthrough_z_min").as_double(),
                         nd_->get_parameter("table.passthrough_z_max").as_double());
     pcp_.voxelGrid( cloud, cloud );
-
     pcp_.setSACPlaneParameter( "z",  5.0 );
     pcp_.sacSegmentation( cloud, inliers, coefficients );
     pcp_.extractIndices( cloud, cloud, inliers, true );
 
     Eigen::Vector4f centroid;
     pcl::compute3DCentroid( *cloud, centroid );
-    pcp_.setPassThroughParameters( "z", centroid.z()+0.01, z_max_ );
+    pcp_.setPassThroughParameters( "z", centroid.z()+0.01, nd_->get_parameter("table.passthrough_z_max").as_double() );
     pcp_.passThrough( cloud, cloud );
 
     // pcl::compute3DCentroid( *cloud, centroid );

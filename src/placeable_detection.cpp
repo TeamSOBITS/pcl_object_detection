@@ -70,11 +70,11 @@ void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::Sh
     // pcp_.ConcaveHull( cloud_plane, cloud_plane_hull );
 
     // *cloud = *cloud + *cloud_plane_hull;
-
+    pcl::getMinMax3D( *cloud_plane, min_pt, max_pt);
     // Determine the estimated range of placement locations
-    pcp_.setPassThroughParameters( "x", centroid.x() - 0.3, centroid.x() + 0.3 );
+    pcp_.setPassThroughParameters( "x", min_pt.x() + 0.15, max_pt.x() - 0.15 );
     pcp_.passThrough( cloud_plane, cloud_plane );
-    pcp_.setPassThroughParameters( "y", centroid.y() - 0.3, centroid.y() + 0.3 );
+    pcp_.setPassThroughParameters( "y", min_pt.y() + 0.15, max_pt.y() - 0.15);
     pcp_.passThrough( cloud_plane, cloud_plane );
     // if ( use_sobit_pro_ ) {
     //     pcp_->setPassThroughParameters( "x", centroid.x() - 0.35, centroid.x() + 0.35 );
