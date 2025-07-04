@@ -73,8 +73,7 @@
 
 2. 本リポジトリをcloneします．
   ```bash
-  $ git clone https://github.com/TeamSOBITS/pcl_object_detection.git]
-  $ git checkout feature/humble-devel
+  $ git clone -b feature/humble-devel https://github.com/TeamSOBITS/pcl_object_detection.git
   ```
 
 3. 依存パッケージをインストールします．
@@ -94,7 +93,7 @@
 <!-- 実行・操作方法 -->
 ## 実行・操作方法
 
-### [detection.launch.py](launch/detection.launch.py)
+### [pcl_object_detection.launch.py](launch/pcl_object_detection.launch.py)
 
 - 机、床、棚上の物体検出と配置位置の検出をします．
 - 検出位置はトピック通信とTFで出力されます．
@@ -103,18 +102,18 @@
 | モード | 機能 |
 | --- | --- |
 | 0 | OFF |
-| 1 | line mode - [パラメータ](param/line_detection_param.yaml)  |
-| 2 | table mode - [パラメータ](param/object_detection_table_param.yaml)  |
-| 3 | floor mode - [パラメータ](param/object_detection_floor_param.yaml) |
-| 4 | shelf mode - [パラメータ](param/object_detection_shelf_param.yaml) |
-| 5 | placeble mode - [パラメータ](param/placeable_postion_detection_param.yaml) |
+| 1 | table mode - [パラメータ](param/object_table_param.yaml)  |
+| 2 | floor mode - [パラメータ](param/object_detection_floor_param.yaml)  |
+| 3 | shelf mode - [パラメータ](param/object_detection_shelf_param.yaml) |
+| 4 | placeable mode - [パラメータ](param/placeable_param.yaml) |
 
-※各モードに共通するパラメータは[common_param.yaml](param/common_param.yaml)にあります 
+
+※各モードに共通するパラメータは[common_param.yaml](param/object_common_param.yaml)にあります 
 
 <!--- 詳細は[こちら](doc/md/point_cloud_object_detection.md)． -->
 実行方法
 ```bash
-$ ros2 launch pcl_object_detection detection.launch.py
+$ ros2 launch pcl_object_detection pcl_object_detection.launch.py
 ```
 
 各モードの切り替え方法（サービス通信）
@@ -123,6 +122,13 @@ $ ros2 launch pcl_object_detection detection.launch.py
 | --- | --- |
 | /switch_mode | sobits_interfaces/ModeCtrl型 |
 
+### [pcl_line_detection.launch.py](launch/pcl_line_detection.launch.py)
+2D-LiDARセンサから得た点群から直線を検出します.
+
+実行方法
+```bash
+$ ros2 launch pcl_object_detection pcl_line_detection.launch.py
+```
 <p align="right">(<a href="#readme-top">上に戻る</a>)</p>
 
 
@@ -130,9 +136,7 @@ $ ros2 launch pcl_object_detection detection.launch.py
 ## マイルストーン
 
 - [x] ドキュメントの充実
-- [x] OSS化
-  - [x] tfからtf2への移行
-  - [x] 独自のメッセージ型から公開メッセージへ更新
+
 
 現時点のバッグや新規機能の依頼を確認するために[Issueページ][issues-url] をご覧ください．
 

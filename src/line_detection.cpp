@@ -1,12 +1,37 @@
 #include "pcl_object_detection/line_detection.hpp"
 #include <pcl_conversions/pcl_conversions.h>
 
-LineDetectionNode::LineDetectionNode(const rclcpp::NodeOptions& options) : BaseNode<sensor_msgs::msg::LaserScan>("line_detection", options) {
-    declareCommonParameters();
+LineDetectionNode::LineDetectionNode(std::shared_ptr<rclcpp::Node> nd) : nd_(nd),pcp_(nd){
+    nd_->declare_parameter("scan_topic_name","/hsrb/base_scan");
+    // nd_->declare_parameter("base_frame_name", "base_footprint");
+    nd_->declare_parameter("passthrough_y_min",-1.0);
+    nd_->declare_parameter("passthrough_y_max",1.0);
+    nd_->declare_parameter("nead_marker",true);
+    nd_->declare_parameter("nead_cloud_line",true);
+    nd_->declare_parameter("nead_info",true);
+    nd_->declare_parameter("execute_flag",true);
 
+    scan_topic_name_ = nd_->get_parameter("scan_topic_name").as_string();
+    target_frame_ = nd_->get_parameter("base_frame_name").as_string();
+    execute_flag = nd_->get_parameter("execute_flag").as_bool();
+    run_ctrl_server_ = nd_->create_service<std_srvs::srv::SetBool>(
+          "/pcl_line_detection/run_ctrl", std::bind(&LineDetectionNode::execute_ctrl_server, this, std::placeholders::_1, std::placeholders::_2));
+
+    pub_line_cloud_ = nd_->create_publisher<sensor_msgs::msg::PointCloud2>("/pcl_line_detection/line_cloud", 10);
+    pub_angle_ = nd_->create_publisher<std_msgs::msg::Float64>("/pcl_line_detection/line_angle", 10);
+    pub_distance_ = nd_->create_publisher<std_msgs::msg::Float64>("/pcl_line_detection/line_distance", 10);
+    auto sensor_qos = rclcpp::QoS(rclcpp::SensorDataQoS()); // センサーデータ用のQoS
+    sub_points_ = nd_->create_subscription<sensor_msgs::msg::LaserScan>(
+        scan_topic_name_,
+        sensor_qos,
+        std::bind(&LineDetectionNode::processData, this, std::placeholders::_1));
+    RCLCPP_INFO(nd_->get_logger(), "LineDetectionNode successfully initialized and ready.");
+    RCLCPP_INFO(nd_->get_logger(), "Subscribing to '%s'", this->scan_topic_name_.c_str());
 }
 
 void LineDetectionNode::processData(const sensor_msgs::msg::LaserScan::SharedPtr scan2d_msg) {
+    if (!execute_flag){return;}
+    RCLCPP_INFO(nd_->get_logger(), "processData");
     PointCloud::Ptr cloud_scan2d (new PointCloud());
     PointCloud::Ptr cloud_line( new PointCloud() );
     pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
@@ -14,127 +39,82 @@ void LineDetectionNode::processData(const sensor_msgs::msg::LaserScan::SharedPtr
     auto line_angle_deg = std::make_shared<std_msgs::msg::Float64>();
     // auto info = std::make_shared<pcl_object_detection::msg::LineInfo>();
     Eigen::Vector4f centroid;
+    auto angle_deg_ = std_msgs::msg::Float64();
+    auto distance_ = std_msgs::msg::Float64();
+    pcp_.setPassThroughParameters("y", nd_->get_parameter("passthrough_y_min").as_double(), nd_->get_parameter("passthrough_y_max").as_double());
+    pcp_.setSACSegmentationParameter(pcl::SACMODEL_LINE, pcl::SAC_RANSAC);
 
-    if ( !pcp_->transformFrameScan2D2PointCloud( scan2d_msg, cloud_scan2d ) ) return;
-    pcp_->passThrough( cloud_scan2d, cloud_scan2d );
+    if ( !pcp_.transformFrameScan2D2PointCloud( scan2d_msg, cloud_scan2d ) ) return;
+    pcp_.passThrough( cloud_scan2d, cloud_scan2d );
 
-    pcp_->sacSegmentation( cloud_scan2d, inliers, coefficients );
-    pcp_->extractIndices( cloud_scan2d, cloud_line, inliers, false );
+    pcp_.sacSegmentation( cloud_scan2d, inliers, coefficients );
+    pcp_.extractIndices( cloud_scan2d, cloud_line, inliers, false );
     pcl::compute3DCentroid( *cloud_line, centroid );
 
     cloud_line->header.frame_id = cloud_scan2d->header.frame_id;
     angle_deg_.data = coefficients->values[3]*(180/M_PI);
     distance_.data = std::hypotf( centroid.x(), centroid.y() );
 
-    RCLCPP_INFO(this->get_logger(), "[LineDetection] Angle[deg] = %.2lf, Distance[m] = %.2lf", angle_deg_.data, distance_.data);
+    RCLCPP_INFO(nd_->get_logger(), "[LineDetection] Angle[deg] = %.2lf, Distance[m] = %.2lf", angle_deg_.data, distance_.data);
 
+    pcl_conversions::toPCL(nd_->get_clock()->now(), cloud_line->header.stamp);
 
-    // info->line_angle_deg = angle_deg_;
-    // info->line_distance = distance_;
-
-    pcl_conversions::toPCL(this->get_clock()->now(), cloud_line->header.stamp);
-    pcl_conversions::toPCL(this->get_clock()->now(), cloud_line->header.stamp);
-
-    if ( need_cloud_line_ ) {
+    if ( nd_->get_parameter("nead_cloud_line").as_bool() ) {
         sensor_msgs::msg::PointCloud2 cloud_line_msg;
         pcl::toROSMsg(*cloud_line, cloud_line_msg);
-        cloud_line_msg.header.stamp = this->now();
+        cloud_line_msg.header.stamp = nd_->now();
         cloud_line_msg.header.frame_id = target_frame_;  // 必要に応じてフレームIDを設定
-        pub_cloud_line_->publish(cloud_line_msg);
+        pub_line_cloud_->publish(cloud_line_msg);
     }
-    // if ( need_line_info_ ) pub_line_info_->publish(*info);
-    
-    if ( need_marker_ ) {
-        std::string str = "Angle[deg] = " + std::to_string(angle_deg_.data) + "  Distance[m] = " + std::to_string(distance_.data);
-        pub_marker_->publish(makeMarkerString(str, coefficients->values[0], coefficients->values[1], coefficients->values[2]));
+    if ( nd_->get_parameter("nead_info").as_bool() ) {
+        pub_angle_->publish(angle_deg_);
+        pub_distance_->publish(distance_);
     }
 }
 
 
-visualization_msgs::msg::Marker LineDetectionNode::makeMarkerString(const std::string &string, double x, double y, double z) {
-    visualization_msgs::msg::Marker marker;
-    marker.header.frame_id = target_frame_;
-    marker.header.stamp = this->now();
-    marker.ns = "line_info";
-    marker.id = 0;
-    marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-    marker.action = visualization_msgs::msg::Marker::ADD;
-
-    marker.pose.position.x = x;
-    marker.pose.position.y = y;
-    marker.pose.position.z = z;
-
-    marker.pose.orientation.w = 1.0;
-
-    marker.scale.z = 0.3;
-
-    marker.color.r = 1.0;
-    marker.color.g = 0.0;
-    marker.color.b = 0.0;
-    marker.color.a = 1.0;
-
-    marker.text = string;
-
-    marker.lifetime = rclcpp::Duration::from_seconds(1.0);
-    return marker;
+bool LineDetectionNode::execute_ctrl_server(const std::shared_ptr<std_srvs::srv::SetBool::Request> req, 
+                                    std::shared_ptr<std_srvs::srv::SetBool::Response> res) {
+    execute_flag = req->data;  // Access the boolean request data
+    if (execute_flag) {
+        RCLCPP_INFO(nd_->get_logger(), "Start Line_Detect.");
+        res->message = "Start Line_Detect.";  // Set a message in the response
+    } else {
+        RCLCPP_INFO(nd_->get_logger(), "Stop Line_Detect.");
+        res->message = "Stop Line_Detect.";  // Set a message in the response
+    }
+    res->success = true;  // Indicate the service call was successful
+    return true;
 }
 
-void LineDetectionNode::activate() {
-    YAML::Node config = YAML::LoadFile(line_param_path_);
+int main(int argc, char** argv) {
+    rclcpp::init(argc, argv);
+    auto node = std::make_shared<rclcpp::Node>("pcl_line_detection");
+    node->declare_parameter("base_frame_name", "base_footprint");
+    node->declare_parameter("publish_cloud_detection_range", true);
+    node->declare_parameter("publish_cloud_object", true);
+    node->declare_parameter("publish_pose_array", true);
+    node->declare_parameter("use_tf", true);
 
-    need_marker_ = config["need_marker"].as<bool>(true);
-    need_cloud_line_ = config["need_cloud_line"].as<bool>(true);
-    need_line_info_ = config["need_line_info"].as<bool>(true);
+    node->declare_parameter("use_voxel", false);
+    node->declare_parameter("leaf_size", 0.01);
 
+    node->declare_parameter("cluster_tolerance", 0.03);
+    node->declare_parameter("min_cluster_point_size", 200);
+    node->declare_parameter("max_cluster_point_size", 10000);
 
-    pcp_.reset();
-    pcp_ = std::make_shared<pcl_object_detection::PointCloudProcessor>("point_cloud_processor_1");
+    node->declare_parameter("threshold_distance", 0.03);
+    node->declare_parameter("probability", 0.95);
 
-    pcp_->setTargetFrame(target_frame_);
-    pcp_->setPassThroughParameters("y", config["passthrough_y_min"].as<double>(), config["passthrough_y_max"].as<double>());
-    pcp_->setSACSegmentationParameter(pcl::SACMODEL_LINE, pcl::SAC_RANSAC, config["threshold_distance"].as<double>(), config["probability"].as<double>());
-
-    this->setupCommonSubscribers();
-    this->setupCommonPublishers();
-    RCLCPP_INFO(this->get_logger(), "LineDetectionNode activated");
+    node->declare_parameter("object_size_x_min",  0.00);
+    node->declare_parameter("object_size_x_max",  0.40);
+    node->declare_parameter("object_size_y_min", -0.20);
+    node->declare_parameter("object_size_y_max",  0.20);
+    node->declare_parameter("object_size_z_min", -0.20);
+    node->declare_parameter("object_size_z_max",  0.40);
+    // std::make_shared<LineDetectionNode>(node);
+    auto line_detection_instance = std::make_shared<LineDetectionNode>(node); 
+    rclcpp::spin(node);
+    rclcpp::shutdown();
+    return 0;
 }
-
-void LineDetectionNode::deactivate() {
-    if (this->sub_) {
-        this->sub_.reset();
-        this->sub_ = nullptr;
-    }
-    if (this->pcp_) {
-        this->pcp_.reset();
-        this->pcp_ = nullptr;
-    }
-
-    if (this->pub_cloud_detection_range_) {
-        this->pub_cloud_detection_range_.reset();
-        this->pub_cloud_detection_range_ = nullptr;
-    }
-    if (this->pub_cloud_object_) {
-        this->pub_cloud_object_.reset();
-        this->pub_cloud_object_ = nullptr;
-    }
-    if (this->pub_pose_array_) {
-        this->pub_pose_array_.reset();
-        this->pub_pose_array_ = nullptr;
-    }
-    if (this->pub_marker_) {
-        this->pub_marker_.reset();
-        this->pub_marker_ = nullptr;
-    }
-    if (this->pub_line_info_) {
-        this->pub_line_info_.reset();
-        this->pub_line_info_ = nullptr;
-    }
-    if (this->pub_cloud_line_) {
-        this->pub_cloud_line_.reset();
-        this->pub_cloud_line_ = nullptr;
-    }
-
-    // RCLCPP_INFO(this->get_logger(), "LineDetectionNode deactivated")
-}
-
-

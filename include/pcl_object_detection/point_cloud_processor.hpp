@@ -66,7 +66,8 @@ namespace pcl_object_detection {
             pcl::EuclideanClusterExtraction<PointT> ec_;
             pcl::KdTreeFLANN<PointT> flann_;
             pcl::RadiusOutlierRemoval<PointT> outrem_;
-
+            laser_geometry::LaserProjection projector_;
+            
             std::string base_frame_name_;
             bool publish_cloud_detection_range_;
             bool publish_cloud_object_;
@@ -108,7 +109,7 @@ namespace pcl_object_detection {
 
             // // Processing functions
             bool transformFramePointCloud(const sensor_msgs::msg::PointCloud2::SharedPtr &input_cloud, PointCloud::Ptr output_cloud);
-            // bool transformFrameScan2D2PointCloud(const sensor_msgs::msg::LaserScan::SharedPtr &input_scan2d, PointCloud::Ptr output_cloud);
+            bool transformFrameScan2D2PointCloud(const sensor_msgs::msg::LaserScan::SharedPtr &input_scan2d, PointCloud::Ptr output_cloud);
             // geometry_msgs::msg::Point transformPoint(const std::string &org_frame, const std::string &target_frame, const geometry_msgs::msg::Point &point);
             bool passThrough(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud);
             void passThroughXYZ(PointCloud::Ptr cloud, double x_min, double x_max, double y_min, double y_max, double z_min, double z_max);

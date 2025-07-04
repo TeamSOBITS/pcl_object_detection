@@ -75,35 +75,36 @@ void pcl_object_detection::PointCloudProcessor::setSACSegmentationParameter(cons
 }
 
 
-// bool PointCloudProcessor::transformFrameScan2D2PointCloud(const sensor_msgs::msg::LaserScan::SharedPtr &input_scan2d, PointCloud::Ptr output_cloud) {
-//     sensor_msgs::msg::PointCloud2 cloud;
+bool PointCloudProcessor::transformFrameScan2D2PointCloud(const sensor_msgs::msg::LaserScan::SharedPtr &input_scan2d, PointCloud::Ptr output_cloud) {
+    sensor_msgs::msg::PointCloud2 cloud;
+    tf2::TimePoint scan_time = tf2_ros::fromMsg(input_scan2d->header.stamp); // ROSメッセージのTimeをtf2::TimePointに変換
 
-//     if (!base_frame_name_.empty()) {
+
+    if (!base_frame_name_.empty()) {
 
 
-//         if (!tfBuffer_.canTransform(base_frame_name_, input_scan2d->header.frame_id, rclcpp::Time(0), std::chrono::milliseconds(500))) {
-//             RCLCPP_WARN(this->get_logger(), "Waiting for transform from %s to %s...",
-//                         input_scan2d->header.frame_id.c_str(), base_frame_name_.c_str());
-//             return false;
-//         }
+        if (!tfBuffer_.canTransform(base_frame_name_, input_scan2d->header.frame_id, scan_time, std::chrono::milliseconds(500))) {
+            RCLCPP_WARN(nd_->get_logger(), "Waiting for transform from %s to %s...",
+                        input_scan2d->header.frame_id.c_str(), base_frame_name_.c_str());
+            return false;
+        }
         
-//         try {
-//             geometry_msgs::msg::TransformStamped transform =
-//                 tfBuffer_.lookupTransform(base_frame_name_, input_scan2d->header.frame_id, tf2::TimePointZero);
-
-//             projector_.transformLaserScanToPointCloud(base_frame_name_, *input_scan2d, cloud, tfBuffer_);
-//             pcl::fromROSMsg(cloud, *output_cloud);
-//             output_cloud->header.frame_id = base_frame_name_;
-//         } catch (const tf2::TransformException &ex) {
-//             RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
-//             return false;
-//         }
-//     } else {
-//         RCLCPP_ERROR(this->get_logger(), "Please set the target frame.");
-//         return false;
-//     }
-//     return true;
-// }
+        try {
+            geometry_msgs::msg::TransformStamped transform =
+                tfBuffer_.lookupTransform(base_frame_name_, input_scan2d->header.frame_id, tf2::TimePointZero);
+            projector_.transformLaserScanToPointCloud(base_frame_name_, *input_scan2d, cloud, tfBuffer_);
+            pcl::fromROSMsg(cloud, *output_cloud);
+            output_cloud->header.frame_id = base_frame_name_;
+        } catch (const tf2::TransformException &ex) {
+            RCLCPP_ERROR(nd_->get_logger(), "%s", ex.what());
+            return false;
+        }
+    } else {
+        RCLCPP_ERROR(nd_->get_logger(), "Please set the target frame.");
+        return false;
+    }
+    return true;
+}
 
 
 // geometry_msgs::msg::Point PointCloudProcessor::transformPoint(const std::string &org_frame, const std::string &target_frame, const geometry_msgs::msg::Point &point) {
@@ -267,7 +268,7 @@ bool pcl_object_detection::PointCloudProcessor::sacSegmentation(const PointCloud
 //         }
 //         return is_match;
 //     } catch ( std::exception& ex ) {
-//         RCLCPP_ERROR(this->get_logger(),"%s", ex.what());
+//         RCLCPP_ERROR(nd_->get_logger(),"%s", ex.what());
 //         return false;
 //     }
 // }

@@ -10,6 +10,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
@@ -66,7 +67,11 @@ ament_target_dependencies(pcl_object_detection_lib
 
 # 実行可能ファイルの定義とリンク
 add_executable(pcl_object_detection src/pcl_object_detection.cpp)
+add_executable(pcl_line_detection src/line_detection.cpp)
 target_link_libraries(pcl_object_detection
+  pcl_object_detection_lib
+)
+target_link_libraries(pcl_line_detection
   pcl_object_detection_lib
 )
 ament_target_dependencies(pcl_object_detection
@@ -84,10 +89,28 @@ ament_target_dependencies(pcl_object_detection
   pcl_ros
   PCL
 )
+ament_target_dependencies(pcl_line_detection
+  rclcpp
+  rclcpp_components
+  sensor_msgs
+  geometry_msgs
+  sobits_interfaces
+  laser_geometry
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
+  tf2_eigen
+  pcl_conversions
+  pcl_ros
+  PCL
+  std_msgs
+  std_srvs
+)
 
 # Install targets
 install(TARGETS
   pcl_object_detection
+  pcl_line_detection
   pcl_object_detection_lib
   DESTINATION lib/${PROJECT_NAME}
 )
