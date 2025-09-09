@@ -88,7 +88,8 @@ def generate_launch_description():
         executable="rviz2",
         name="pcl_rviz_node",
         arguments=['-d', os.path.join(pcl_object_detection_pkg, "rviz", "pcl_object_detection.rviz")],
-        output="screen"
+        output="screen",
+        condition=IfCondition(use_rviz)
     )
 
     return LaunchDescription([
