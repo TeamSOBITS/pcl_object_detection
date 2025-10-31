@@ -8,7 +8,7 @@ CURRENT_DIR=`pwd`
 cd ..
 
 # Download required packages for SOBIT PRO
-git clone https://github.com/TeamSOBITS/sobits_msgs
+git clone https://github.com/TeamSOBITS/sobits_interfaces.git
 
 # Go back to previous directory
 cd ${CURRENT_DIR}
