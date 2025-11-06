@@ -29,34 +29,64 @@ def generate_launch_description():
         description="Use rviz bringup"
     )
 
-    common_param_ = os.path.join(
+    common_param_yaml = os.path.join(
         pcl_object_detection_pkg,
         "param",
         "object_common_param.yaml"
     )
 
-    table_param_ = os.path.join(
+    table_param_yaml = os.path.join(
         pcl_object_detection_pkg,
         "param",
         "object_table_param.yaml"
     )
 
-    floor_param_ = os.path.join(
+    floor_param_yaml = os.path.join(
         pcl_object_detection_pkg,
         "param",
         "object_floor_param.yaml"
     )
 
-    shelf_param_ = os.path.join(
+    shelf_param_yaml = os.path.join(
         pcl_object_detection_pkg,
         "param",
         "object_shelf_param.yaml"
     )
 
-    placeable_param_ = os.path.join(
+    placeable_param_yaml = os.path.join(
         pcl_object_detection_pkg,
         "param",
         "placeable_param.yaml"
+    )
+
+    common_param_ = LaunchConfiguration("common_param")
+    common_param_cmd = DeclareLaunchArgument(
+        "common_param", default_value=common_param_yaml,
+        description="Path to common parameter yaml file"
+    )
+
+    table_param_ = LaunchConfiguration("table_param")
+    table_param_cmd = DeclareLaunchArgument(
+        "table_param", default_value=table_param_yaml,
+        description="Path to table parameter yaml file"
+    )
+
+    floor_param_ = LaunchConfiguration("floor_param")
+    floor_param_cmd = DeclareLaunchArgument(
+        "floor_param", default_value=floor_param_yaml,
+        description="Path to floor parameter yaml file"
+    )
+
+    shelf_param_ = LaunchConfiguration("shelf_param")
+    shelf_param_cmd = DeclareLaunchArgument(
+        "shelf_param", default_value=shelf_param_yaml,
+        description="Path to shelf parameter yaml file"
+    )
+
+    placeable_param_ = LaunchConfiguration("placeable_param")
+    placeable_param_cmd = DeclareLaunchArgument(
+        "placeable_param", default_value=placeable_param_yaml,
+        description="Path to placeable parameter yaml file"
     )
 
     namespace = LaunchConfiguration("namespace")
@@ -96,6 +126,11 @@ def generate_launch_description():
         initial_mode_cmd,
         qos_profile_cmd,
         use_rviz_cmd,
+        common_param_cmd,
+        table_param_cmd,
+        floor_param_cmd,
+        shelf_param_cmd,
+        placeable_param_cmd,
         namespace_cmd,
         pcl_node_cmd,
         rviz_node_cmd,
