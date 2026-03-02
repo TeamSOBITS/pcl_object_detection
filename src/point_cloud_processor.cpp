@@ -1,6 +1,7 @@
 
 
 #include <pcl_object_detection/point_cloud_processor.hpp>
+#include <limits>
 
 using namespace pcl_object_detection;
 
@@ -28,7 +29,14 @@ PointCloudProcessor::PointCloudProcessor(std::shared_ptr<rclcpp::Node> nd) : nd_
     object_size_y_max_ = nd_->get_parameter("object_size_y_max").as_double();
     object_size_z_min_ = nd_->get_parameter("object_size_z_min").as_double();
     object_size_z_max_ = nd_->get_parameter("object_size_z_max").as_double();
+
+    vertical_structure_slice_thickness_ = nd_->get_parameter("vertical_structure.slice_thickness").as_double();
+    vertical_structure_xy_cell_size_ = nd_->get_parameter("vertical_structure.xy_cell_size").as_double();
+    vertical_structure_check_height_ = nd_->get_parameter("vertical_structure.check_height").as_double();
+    vertical_structure_required_continuity_ = nd_->get_parameter("vertical_structure.required_continuity").as_double();
+    vertical_structure_min_points_per_cell_ = nd_->get_parameter("vertical_structure.min_points_per_cell").as_int();
     // global parameter //
+    filter_vertical_structures_ = false;
 
     setSACSegmentationParameter(pcl::SACMODEL_PERPENDICULAR_PLANE, pcl::SAC_RANSAC);
     setRadiusOutlierRemovalParameters( 0.05, 20, false );
@@ -173,6 +181,10 @@ void pcl_object_detection::PointCloudProcessor::setRadiusOutlierRemovalParameter
     outrem_.setRadiusSearch( radius );
     outrem_.setMinNeighborsInRadius ( min_pts );
     outrem_.setKeepOrganized( keep_organized );
+}
+
+void pcl_object_detection::PointCloudProcessor::setVerticalStructureFilter(bool enable) {
+    filter_vertical_structures_ = enable;
 }
 
 bool pcl_object_detection::PointCloudProcessor::voxelGrid(const PointCloud::Ptr input_cloud, PointCloud::Ptr output_cloud) {
@@ -335,6 +347,77 @@ void pcl_object_detection::PointCloudProcessor::sendTransform(const geometry_msg
     tfBroadcaster_.sendTransform(transformStamped);
 }
 
+bool PointCloudProcessor::isVerticalStructure(const PointCloud::Ptr& cloud, const pcl::PointIndices& cluster) {
+    double min_x = std::numeric_limits<double>::max();
+    double min_y = std::numeric_limits<double>::max();
+    double max_x = -std::numeric_limits<double>::max();
+    double max_y = -std::numeric_limits<double>::max();
+
+    for (const auto& idx : cluster.indices) {
+        const auto& pt = cloud->points[idx];
+        if (pt.x < min_x) min_x = pt.x;
+        if (pt.y < min_y) min_y = pt.y;
+        if (pt.x > max_x) max_x = pt.x;
+        if (pt.y > max_y) max_y = pt.y;
+    }
+
+    int grid_w = std::max(1, (int)std::ceil((max_x - min_x) / vertical_structure_xy_cell_size_));
+    int grid_h = std::max(1, (int)std::ceil((max_y - min_y) / vertical_structure_xy_cell_size_));
+    int num_slices = std::ceil(vertical_structure_check_height_ / vertical_structure_slice_thickness_);
+
+    // Memory protection
+    if (grid_w * grid_h > 10000 || num_slices <= 0) {
+        return false;
+    }
+
+    // Managed with a 1D array (to prevent access errors)
+    // index = (x * grid_h + y) * num_slices + s
+    std::vector<int> grid_counts(grid_w * grid_h * num_slices, 0);
+    
+    for (const auto& idx : cluster.indices) {
+        const auto& pt = cloud->points[idx];
+        
+        if (pt.z < 0.0 || pt.z >= vertical_structure_check_height_) continue;
+        
+        int s_idx = std::floor(pt.z / vertical_structure_slice_thickness_);
+        int x_idx = std::floor((pt.x - min_x) / vertical_structure_xy_cell_size_);
+        int y_idx = std::floor((pt.y - min_y) / vertical_structure_xy_cell_size_);
+        
+        if (s_idx >= 0 && s_idx < num_slices && 
+            x_idx >= 0 && x_idx < grid_w && 
+            y_idx >= 0 && y_idx < grid_h) {
+            
+            int linear_idx = (x_idx * grid_h + y_idx) * num_slices + s_idx;
+            grid_counts[linear_idx]++;
+        }
+    }
+
+    // Loop for each XY cell (unified calculation formula for safety)
+    for (int x = 0; x < grid_w; ++x) {
+        for (int y = 0; y < grid_h; ++y) {
+            double continuous_h = 0.0;
+            double current_segment_h = 0.0;
+            int cell_base_idx = (x * grid_h + y) * num_slices;
+
+            for (int s = 0; s < num_slices; ++s) {
+                if (grid_counts[cell_base_idx + s] >= vertical_structure_min_points_per_cell_) {
+                    current_segment_h += vertical_structure_slice_thickness_;
+                } else {
+                    if (current_segment_h > continuous_h) continuous_h = current_segment_h;
+                    current_segment_h = 0.0; 
+                }
+            }
+            if (current_segment_h > continuous_h) continuous_h = current_segment_h;
+
+            // Pillar determination (furniture confirmed)
+            if (continuous_h >= vertical_structure_required_continuity_) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 int PointCloudProcessor::principalComponentAnalysis(
     const PointCloud::Ptr cloud,
     const std::vector<pcl::PointIndices>& cluster_indices,
@@ -364,6 +447,18 @@ int PointCloudProcessor::principalComponentAnalysis(
         if ( cluster_size.x() < object_size_x_min_ || cluster_size.x() > object_size_x_max_ ) continue;
         if ( cluster_size.y() < object_size_y_min_ || cluster_size.y() > object_size_y_max_ ) continue;
         if ( cluster_size.z() < object_size_z_min_ || cluster_size.z() > object_size_z_max_ ) continue;
+
+        // Get the lowest point of the cluster
+        if (filter_vertical_structures_) {
+            double cluster_min_z_raw = std::numeric_limits<double>::max();
+            for (const auto& idx : cluster.indices) {
+                if (cloud->points[idx].z < cluster_min_z_raw) cluster_min_z_raw = cloud->points[idx].z;
+            }
+            if (cluster_min_z_raw < 0.10) {
+                if (isVerticalStructure(cloud, cluster)) continue;
+            }
+        }
+        
         for ( auto& i : cluster.indices ) cloud_object->points.push_back(cloud->points[i]);
 
         // double roll = std::atan2( eigen_vectors_pca(1, 0), eigen_vectors_pca(2, 0) );
@@ -414,4 +509,3 @@ int PointCloudProcessor::principalComponentAnalysis(
     pcl_conversions::toPCL(nd_->now(), cloud_object->header.stamp);
     return  ( object_id == init_object_id ) ? -1 : object_id;
 }
-

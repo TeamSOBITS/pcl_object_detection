@@ -29,6 +29,12 @@ def generate_launch_description():
         description="Use rviz bringup"
     )
 
+    filter_vertical_structures = LaunchConfiguration("filter_vertical_structures")
+    filter_vertical_structures_cmd = DeclareLaunchArgument(
+        "filter_vertical_structures", default_value="False",
+        description="Enable vertical structure filtering for floor mode"
+    )
+
     common_param_ = os.path.join(
         pcl_object_detection_pkg,
         "param",
@@ -73,6 +79,7 @@ def generate_launch_description():
             {
                 "initial_mode": initial_mode,
                 "qos_profile" : qos_profile,
+                "floor.filter_vertical_structures": filter_vertical_structures,
             },
             common_param_,
             table_param_,
@@ -96,6 +103,7 @@ def generate_launch_description():
         initial_mode_cmd,
         qos_profile_cmd,
         use_rviz_cmd,
+        filter_vertical_structures_cmd,
         namespace_cmd,
         pcl_node_cmd,
         rviz_node_cmd,
