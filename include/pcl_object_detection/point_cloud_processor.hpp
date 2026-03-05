@@ -90,6 +90,13 @@ namespace pcl_object_detection {
             double object_size_y_max_;
             double object_size_z_min_;
             double object_size_z_max_;
+            bool filter_vertical_structures_;
+
+            double vertical_structure_slice_thickness_;
+            double vertical_structure_xy_cell_size_;
+            double vertical_structure_check_height_;
+            double vertical_structure_required_continuity_;
+            int vertical_structure_min_points_per_cell_;
 
         public:
             PointCloudProcessor(std::shared_ptr<rclcpp::Node> nd);
@@ -104,6 +111,7 @@ namespace pcl_object_detection {
             void setClusteringParameters();
             void setRadiusOutlierRemovalParameters(double radius, int min_pts, bool keep_organized);
             void setSACSegmentationParameter(int model, int method);
+            void setVerticalStructureFilter(bool enable);
             // void setObjectSizeParameter(double x_min, double x_max, double y_min, double y_max, double z_min, double z_max);
             // void setObjectOffsetParameter(double x_offset, double y_offset, double z_offset);
 
@@ -130,6 +138,8 @@ namespace pcl_object_detection {
                 int init_object_id = 0);
             static bool compareDistance(vision_msgs::msg::Detection3D &a, vision_msgs::msg::Detection3D &b);
             void sendTransform(const geometry_msgs::msg::Pose target_point, const std::string &target_frame);
+        protected:
+            bool isVerticalStructure(const PointCloud::Ptr& cloud, const pcl::PointIndices& cluster);
     };
 }
 

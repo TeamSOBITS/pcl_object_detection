@@ -25,6 +25,12 @@ PCLNode::PCLNode(std::shared_ptr<rclcpp::Node> nd) : nd_(nd), qos_profile_(1) {
     nd_->declare_parameter("object_size_y_max",  0.20);
     nd_->declare_parameter("object_size_z_min", -0.20);
     nd_->declare_parameter("object_size_z_max",  0.40);
+
+    nd_->declare_parameter("vertical_structure.slice_thickness", 0.02);
+    nd_->declare_parameter("vertical_structure.xy_cell_size", 0.03);
+    nd_->declare_parameter("vertical_structure.check_height", 0.20);
+    nd_->declare_parameter("vertical_structure.required_continuity", 0.15);
+    nd_->declare_parameter("vertical_structure.min_points_per_cell", 3);
     // global param //
 
     // local param of mode //
@@ -41,6 +47,7 @@ PCLNode::PCLNode(std::shared_ptr<rclcpp::Node> nd) : nd_(nd), qos_profile_(1) {
     nd_->declare_parameter("floor.passthrough_y_max",  0.0);
     nd_->declare_parameter("floor.passthrough_z_min",  0.0);
     nd_->declare_parameter("floor.passthrough_z_max",  0.0);
+    nd_->declare_parameter("floor.filter_vertical_structures", false);
 
     nd_->declare_parameter("shelf.passthrough_x_min",  0.0);
     nd_->declare_parameter("shelf.passthrough_x_max",  0.0);

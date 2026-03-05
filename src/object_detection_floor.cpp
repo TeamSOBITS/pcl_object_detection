@@ -28,33 +28,38 @@ void ObjectDetectionFloorNode::processData(const sensor_msgs::msg::PointCloud2::
 
     if (!pcp_.transformFramePointCloud( cloud_msg, cloud )) return;
     pcp_.passThroughXYZ(cloud, 
-                        nd_->get_parameter("table.passthrough_x_min").as_double(),
-                        nd_->get_parameter("table.passthrough_x_max").as_double(),
-                        nd_->get_parameter("table.passthrough_y_min").as_double(),
-                        nd_->get_parameter("table.passthrough_y_max").as_double(),
-                        nd_->get_parameter("table.passthrough_z_min").as_double(),
-                        nd_->get_parameter("table.passthrough_z_max").as_double());
+                        nd_->get_parameter("floor.passthrough_x_min").as_double(),
+                        nd_->get_parameter("floor.passthrough_x_max").as_double(),
+                        nd_->get_parameter("floor.passthrough_y_min").as_double(),
+                        nd_->get_parameter("floor.passthrough_y_max").as_double(),
+                        nd_->get_parameter("floor.passthrough_z_min").as_double(),
+                        nd_->get_parameter("floor.passthrough_z_max").as_double());
     pcp_.voxelGrid( cloud, cloud );
 
     pcp_.setSACPlaneParameter("z",5.0);
     pcp_.sacSegmentation( cloud, inliers, coefficients );
     pcp_.extractIndices( cloud, cloud, inliers, true );
 
-    Eigen::Vector4f centroid;
-    pcl::compute3DCentroid( *cloud, centroid );
-    pcp_.setPassThroughParameters( "z", centroid.z()+0.01, nd_->get_parameter("table.passthrough_z_max").as_double() );
+    // Eigen::Vector4f centroid;
+    // pcl::compute3DCentroid( *cloud, centroid );
+    // pcp_.setPassThroughParameters( "z", centroid.z()+0.01, nd_->get_parameter("table.passthrough_z_max").as_double() );
+    double z_max = nd_->get_parameter("floor.passthrough_z_max").as_double();
+    pcp_.setPassThroughParameters( "z", 0.02, z_max );
     pcp_.passThrough( cloud, cloud );
 
     pcp_.radiusOutlierRemoval( cloud, cloud );
     pcp_.euclideanClusterExtraction ( cloud, &cluster_indices );
+    pcp_.setVerticalStructureFilter(nd_->get_parameter("floor.filter_vertical_structures").as_bool());
     object_num = pcp_.principalComponentAnalysis( cloud, cluster_indices, pose_array, cloud_object );
 
     RCLCPP_INFO(nd_->get_logger(), "[ObjectDetectionFloor] Object count = %d", object_num);
 
-    cloud->header.frame_id = nd_->get_parameter("base_frame_name").as_string();
+    // cloud->header.frame_id = nd_->get_parameter("base_frame_name").as_string();
     sensor_msgs::msg::PointCloud2 output_cloud_msg;
+    pcl::toROSMsg(*cloud_object, output_cloud_msg);
     output_cloud_msg.header.stamp = nd_->now();
     output_cloud_msg.header.frame_id = nd_->get_parameter("base_frame_name").as_string();
-    pcl::toROSMsg(*cloud, output_cloud_msg);
+    // pcl::toROSMsg(*cloud, output_cloud_msg);
     pub_object_cloud_->publish(output_cloud_msg);
+    pub_obj_poses_->publish(*pose_array);
 }

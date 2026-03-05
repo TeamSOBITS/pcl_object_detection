@@ -23,3 +23,10 @@ pcl_object_detection/pcl_object_detection:
     object_size_y_max : 0.40
     object_size_z_min : 0.00
     object_size_z_max : 0.40
+
+    vertical_structure:
+      slice_thickness: 0.02
+      xy_cell_size: 0.03
+      check_height: 0.20
+      required_continuity: 0.15
+      min_points_per_cell: 3
