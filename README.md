@@ -110,6 +110,20 @@
 
 ※各モードに共通するパラメータは[common_param.yaml](param/object_common_param.yaml)にあります 
 
+**垂直構造フィルタ機能**
+床モード（floor mode）使用時に，壁や柱などの垂直構造物を除去するフィルタを有効にできます．
+launch引数 `filter_vertical_structures` を `True` に設定してください．
+
+フィルタのパラメータはcommon_param.yamlの`vertical_structure`で設定可能です．
+
+| パラメータ | 説明 |
+| --- | --- |
+| slice_thickness | 垂直判定を行うスライスの厚さ [m] |
+| xy_cell_size | 空間分割するグリッドサイズ [m] |
+| check_height | 垂直性を確認する高さ範囲 [m] |
+| required_continuity | 垂直とみなす連続性の閾値 [m] |
+| min_points_per_cell | セル内の最小点群数 |
+
 <!--- 詳細は[こちら](doc/md/point_cloud_object_detection.md)． -->
 実行方法
 ```bash

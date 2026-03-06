@@ -31,6 +31,11 @@ PCLNode::PCLNode(std::shared_ptr<rclcpp::Node> nd) : nd_(nd), qos_profile_(1) {
     nd_->declare_parameter("vertical_structure.check_height", 0.20);
     nd_->declare_parameter("vertical_structure.required_continuity", 0.15);
     nd_->declare_parameter("vertical_structure.min_points_per_cell", 3);
+    nd_->declare_parameter("vertical_structure.initial_min_x", INFINITY);
+    nd_->declare_parameter("vertical_structure.initial_max_x", -INFINITY);
+    nd_->declare_parameter("vertical_structure.initial_min_y", INFINITY);
+    nd_->declare_parameter("vertical_structure.initial_max_y", -INFINITY);
+    nd_->declare_parameter("vertical_structure.initial_min_z", INFINITY);
     // global param //
 
     // local param of mode //

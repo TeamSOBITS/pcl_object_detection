@@ -1,7 +1,6 @@
 
 
 #include <pcl_object_detection/point_cloud_processor.hpp>
-#include <limits>
 
 using namespace pcl_object_detection;
 
@@ -35,6 +34,11 @@ PointCloudProcessor::PointCloudProcessor(std::shared_ptr<rclcpp::Node> nd) : nd_
     vertical_structure_check_height_ = nd_->get_parameter("vertical_structure.check_height").as_double();
     vertical_structure_required_continuity_ = nd_->get_parameter("vertical_structure.required_continuity").as_double();
     vertical_structure_min_points_per_cell_ = nd_->get_parameter("vertical_structure.min_points_per_cell").as_int();
+    vertical_structure_initial_min_x_ = nd_->get_parameter("vertical_structure.initial_min_x").as_double();
+    vertical_structure_initial_max_x_ = nd_->get_parameter("vertical_structure.initial_max_x").as_double();
+    vertical_structure_initial_min_y_ = nd_->get_parameter("vertical_structure.initial_min_y").as_double();
+    vertical_structure_initial_max_y_ = nd_->get_parameter("vertical_structure.initial_max_y").as_double();
+    vertical_structure_initial_min_z_ = nd_->get_parameter("vertical_structure.initial_min_z").as_double();
     // global parameter //
     filter_vertical_structures_ = false;
 
@@ -348,10 +352,10 @@ void pcl_object_detection::PointCloudProcessor::sendTransform(const geometry_msg
 }
 
 bool PointCloudProcessor::isVerticalStructure(const PointCloud::Ptr& cloud, const pcl::PointIndices& cluster) {
-    double min_x = std::numeric_limits<double>::max();
-    double min_y = std::numeric_limits<double>::max();
-    double max_x = -std::numeric_limits<double>::max();
-    double max_y = -std::numeric_limits<double>::max();
+    double min_x = vertical_structure_initial_min_x_;
+    double min_y = vertical_structure_initial_min_y_;
+    double max_x = vertical_structure_initial_max_x_;
+    double max_y = vertical_structure_initial_max_y_;
 
     for (const auto& idx : cluster.indices) {
         const auto& pt = cloud->points[idx];
@@ -450,7 +454,7 @@ int PointCloudProcessor::principalComponentAnalysis(
         
         // Get the lowest point of the cluster
         if (filter_vertical_structures_) {
-            double cluster_min_z_raw = std::numeric_limits<double>::max();
+            double cluster_min_z_raw = vertical_structure_initial_min_z_;
             for (const auto& idx : cluster.indices) {
                 if (cloud->points[idx].z < cluster_min_z_raw) cluster_min_z_raw = cloud->points[idx].z;
             }
@@ -509,4 +513,3 @@ int PointCloudProcessor::principalComponentAnalysis(
     pcl_conversions::toPCL(nd_->now(), cloud_object->header.stamp);
     return  ( object_id == init_object_id ) ? -1 : object_id;
 }
-

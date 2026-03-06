@@ -97,6 +97,11 @@ namespace pcl_object_detection {
             double vertical_structure_check_height_;
             double vertical_structure_required_continuity_;
             int vertical_structure_min_points_per_cell_;
+            double vertical_structure_initial_min_x_;
+            double vertical_structure_initial_max_x_;
+            double vertical_structure_initial_min_y_;
+            double vertical_structure_initial_max_y_;
+            double vertical_structure_initial_min_z_;
 
         public:
             PointCloudProcessor(std::shared_ptr<rclcpp::Node> nd);
