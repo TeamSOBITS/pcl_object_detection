@@ -1,172 +1,282 @@
-#include "pcl_object_detection/placeable_detection.hpp"
+#include "pcl_object_detection/placeable_detection_component.hpp"
 
-PlaceableDetectionNode::PlaceableDetectionNode(std::shared_ptr<rclcpp::Node> nd) : nd_(nd), pcp_(nd) {
-    pub_obj_poses_ = nd_->create_publisher<vision_msgs::msg::Detection3DArray>("object_poses", 5);
-    pub_object_cloud_ = nd_->create_publisher<sensor_msgs::msg::PointCloud2>("cloud_object", 1);
-    pub_placeable_cloud_ = nd_->create_publisher<sensor_msgs::msg::PointCloud2>("cloud_detection_range", 1);
+#include <pcl/common/common.h>
+#include <pcl/common/centroid.h>
+#include <pcl_conversions/pcl_conversions.h>
 
-    // x_min_ = nd_->get_parameter("placeable.passthrough_x_min").as_double();
-    // x_max_ = nd_->get_parameter("placeable.passthrough_x_max").as_double();
-    // y_min_ = nd_->get_parameter("placeable.passthrough_y_min").as_double();
-    // y_max_ = nd_->get_parameter("placeable.passthrough_y_max").as_double();
-    // z_min_ = nd_->get_parameter("placeable.passthrough_z_min").as_double();
-    // z_max_ = nd_->get_parameter("placeable.passthrough_z_max").as_double();
+namespace pcl_object_detection {
 
-    // placeable_search_interval_ = nd_->get_parameter("placeable.placeable_search_interval").as_double();
-    // obstacle_tolerance_ = nd_->get_parameter("placeable.obstacle_tolerance").as_double();
+PlaceableDetectionComponent::PlaceableDetectionComponent(const rclcpp::NodeOptions & options)
+: rclcpp_lifecycle::LifecycleNode("placeable_detection", options) {
+  this->declare_parameter<std::string>("input_topic", "cloud_filtered");
+  this->declare_parameter<std::string>("base_frame", "base_footprint");
+  
+  this->declare_parameter<double>("place_x_min", 0.3);
+  this->declare_parameter<double>("place_x_max", 1.5);
+  this->declare_parameter<double>("place_y_min", -1.0);
+  this->declare_parameter<double>("place_y_max", 1.0);
+  this->declare_parameter<double>("place_z_min", 0.4);
+  this->declare_parameter<double>("place_z_max", 1.2);
+
+  this->declare_parameter<double>("search_interval", 0.02);
+  this->declare_parameter<double>("obstacle_tolerance", 0.10);
+  this->declare_parameter<double>("edge_margin", 0.05);
+  this->declare_parameter<double>("plane_dist_threshold", 0.02);
+  this->declare_parameter<int>("ransac_max_iterations", 200);
 }
 
-void PlaceableDetectionNode::processData(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg) {
+PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
+  RCLCPP_INFO(this->get_logger(), "Configuring Placeable Spot Detection...");
 
-    PointCloud::Ptr cloud            (new PointCloud());
-    PointCloud::Ptr cloud_plane      (new PointCloud());
-    PointCloud::Ptr cloud_plane_hull (new PointCloud());
+  // Read Parameters into Struct
+  params_.base_frame = this->get_parameter("base_frame").as_string();
+  
+  params_.place_x_min = this->get_parameter("place_x_min").as_double();
+  params_.place_x_max = this->get_parameter("place_x_max").as_double();
+  params_.place_y_min = this->get_parameter("place_y_min").as_double();
+  params_.place_y_max = this->get_parameter("place_y_max").as_double();
+  params_.place_z_min = this->get_parameter("place_z_min").as_double();
+  params_.place_z_max = this->get_parameter("place_z_max").as_double();
 
-    // auto pose_array = std::make_shared<sobits_interfaces::msg::ObjectPoseArray>();
-    auto pose_array = std::make_shared<vision_msgs::msg::Detection3DArray>();
-    pose_array->header.stamp = nd_->now();
-    pose_array->header.frame_id = nd_->get_parameter("base_frame_name").as_string();
+  params_.search_interval = this->get_parameter("search_interval").as_double();
+  params_.obstacle_tolerance = this->get_parameter("obstacle_tolerance").as_double();
+  params_.edge_margin = this->get_parameter("edge_margin").as_double();
 
-    pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
-    pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
-    std::vector<pcl::PointIndices> cluster_indices;
+  params_.plane_dist_threshold = this->get_parameter("plane_dist_threshold").as_double();
+  params_.ransac_max_iterations = this->get_parameter("ransac_max_iterations").as_int();
 
-    if (!pcp_.transformFramePointCloud( cloud_msg, cloud )) return;
-    pcp_.passThroughXYZ(cloud,
-                        nd_->get_parameter("placeable.passthrough_x_min").as_double(),
-                        nd_->get_parameter("placeable.passthrough_x_max").as_double(),
-                        nd_->get_parameter("placeable.passthrough_y_min").as_double(), 
-                        nd_->get_parameter("placeable.passthrough_y_max").as_double(),
-                        nd_->get_parameter("placeable.passthrough_z_min").as_double(),
-                        nd_->get_parameter("placeable.passthrough_z_max").as_double());
-    pcp_.voxelGrid( cloud, cloud );
+  // Log Parameters
+  RCLCPP_INFO(this->get_logger(), "Parameters Loaded:");
+  RCLCPP_INFO(this->get_logger(), "Base Frame: %s", params_.base_frame.c_str());
+  RCLCPP_INFO(this->get_logger(), "Place Search Volume:");
+  RCLCPP_INFO(this->get_logger(), "  X: [%f, %f]", params_.place_x_min, params_.place_x_max);
+  RCLCPP_INFO(this->get_logger(), "  Y: [%f, %f]", params_.place_y_min, params_.place_y_max);
+  RCLCPP_INFO(this->get_logger(), "  Z: [%f, %f]", params_.place_z_min, params_.place_z_max);
+  RCLCPP_INFO(this->get_logger(), "Search Parameters:");
+  RCLCPP_INFO(this->get_logger(), "  Search Interval: %f", params_.search_interval);
+  RCLCPP_INFO(this->get_logger(), "  Obstacle Tolerance: %f", params_.obstacle_tolerance);
+  RCLCPP_INFO(this->get_logger(), "  Edge Margin: %f", params_.edge_margin);
+  RCLCPP_INFO(this->get_logger(), "  Plane Distance Threshold: %f", params_.plane_dist_threshold);
+  RCLCPP_INFO(this->get_logger(), "  Max Iterations: %d", params_.ransac_max_iterations);
 
-    pcp_.setSACPlaneParameter( "z",  5.0 );
-    if (!pcp_.sacSegmentation( cloud, inliers, coefficients )) return;
-    pcp_.extractIndices( cloud, cloud_plane, inliers, false );
-    pcp_.extractIndices( cloud, cloud, inliers, true );
+  // Allocate PCL Memory
+  cloud_filtered_ = std::make_shared<PointCloud>();
+  cloud_table_zone_ = std::make_shared<PointCloud>();
+  cloud_plane_ = std::make_shared<PointCloud>();
+  cloud_obstacles_ = std::make_shared<PointCloud>();
+  tree_ = std::make_shared<pcl::search::KdTree<PointT>>();
 
-    Eigen::Vector4f centroid, min_pt, max_pt;
-    pcl::compute3DCentroid( *cloud_plane, centroid );
-    pcp_.setPassThroughParameters( "z", centroid.z(), centroid.z()+0.4 );
-    pcp_.passThrough( cloud, cloud );
-    // pcp_.setPassThroughParameters( "x", 0.0, centroid.x() );
-    // pcp_.passThrough( cloud, cloud );
-    // pcl::getMinMax3D( *cloud_plane, min_pt, max_pt);
-    // if ( use_sobit_pro_ ) {
-    //     pcp_->setPassThroughParameters( "y", 0.0, max_pt.y() );
-    //     pcp_->passThrough( cloud, cloud );
-    // } else {
-    //     pcp_->setPassThroughParameters( "x", 0.0, max_pt.x() );
-    //     pcp_->passThrough( cloud, cloud );
-    // }
+  // Configure PCL Defaults
+  seg_.setOptimizeCoefficients(true);
+  seg_.setModelType(pcl::SACMODEL_PLANE);
+  seg_.setMethodType(pcl::SAC_RANSAC);
+  seg_.setMaxIterations(params_.ransac_max_iterations);
 
-    // Check the number of objects
-    // pcp_.euclideanClusterExtraction ( cloud, &cluster_indices );
-    // int object_num = cluster_indices.size();
+  // Create Publishers and TF Broadcaster
+  auto qos = rclcpp::SensorDataQoS();
+  pub_detections_ = this->create_publisher<vision_msgs::msg::Detection3DArray>("placeable_poses", 10);
+  pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("placeable_debug_cloud", qos);
+  
+  tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
-    // Obtain plane edges and add object point cloud
-    // pcp_.voxelGrid( cloud, cloud );
-    // pcp_.ConcaveHull( cloud_plane, cloud_plane_hull );
+  return CallbackReturn::SUCCESS;
+}
 
-    // *cloud = *cloud + *cloud_plane_hull;
-    pcl::getMinMax3D( *cloud_plane, min_pt, max_pt);
-    // Determine the estimated range of placement locations
-    pcp_.setPassThroughParameters( "x", min_pt.x() + 0.15, max_pt.x() - 0.15 );
-    pcp_.passThrough( cloud_plane, cloud_plane );
-    pcp_.setPassThroughParameters( "y", min_pt.y() + 0.15, max_pt.y() - 0.15);
-    pcp_.passThrough( cloud_plane, cloud_plane );
-    // if ( use_sobit_pro_ ) {
-    //     pcp_->setPassThroughParameters( "x", centroid.x() - 0.35, centroid.x() + 0.35 );
-    //     pcp_->passThrough( cloud_plane, cloud_plane );
-    //     pcp_->setPassThroughParameters( "y", centroid.y() - 0.35, centroid.y() );
-    //     pcp_->passThrough( cloud_plane, cloud_plane );
-    // } else {
-    //     pcp_->setPassThroughParameters( "x", centroid.x() - 0.35, centroid.x() );
-    //     pcp_->passThrough( cloud_plane, cloud_plane );
-    //     pcp_->setPassThroughParameters( "y", centroid.y() - 0.35, centroid.y() + 0.35 );
-    //     pcp_->passThrough( cloud_plane, cloud_plane );
-    // }
-    pcl::getMinMax3D( *cloud_plane, min_pt, max_pt);
-    pcl::compute3DCentroid( *cloud_plane, centroid );
+PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_activate(const rclcpp_lifecycle::State &) {
+  RCLCPP_INFO(this->get_logger(), "Activating Placeable Detection...");
 
-    geometry_msgs::msg::Point placeable_point;
-    double min_pot = 1.0, potential = 0.0;
+  // Activate Publishers
+  pub_detections_->on_activate();
+  pub_debug_cloud_->on_activate();
 
-    geometry_msgs::msg::Point obs_pt;
-    for ( double x = max_pt.x() - 0.1; x > min_pt.x() + 0.1; x -= nd_->get_parameter("placeable.placeable_search_interval").as_double()) {
-        for ( double y = max_pt.y() - 0.1; y > min_pt.y() + 0.1; y -= nd_->get_parameter("placeable.placeable_search_interval").as_double()) {
-            geometry_msgs::msg::Point search_pt;
-            pcl::PointIndices::Ptr nearest_inliers (new pcl::PointIndices);
-            search_pt.x = x;
-            search_pt.y = y;
-            search_pt.z = centroid.z();
-            if ( !pcp_.nearestKSearch ( cloud, nearest_inliers, search_pt )) continue;
-            obs_pt.x = cloud->points[ nearest_inliers->indices[0] ].x;
-            obs_pt.y = cloud->points[ nearest_inliers->indices[0] ].y;
-            double obs_dist = std::hypotf( search_pt.x - obs_pt.x, search_pt.y - obs_pt.y );
-            if ( obs_dist < nd_->get_parameter("placeable.obstacle_tolerance").as_double()) potential = 1.0;
-            else potential = ( 1 / ( 1 + obs_dist ));
+  // Start Data Flow via Subscription
+  auto qos = rclcpp::SensorDataQoS();
+  std::string input_topic = this->get_parameter("input_topic").as_string();
 
-            if ( min_pot > potential ) {
-                min_pot = potential;
-                placeable_point = search_pt;
-            }
+  // Enable IPC explicitly for the subscriber
+  rclcpp::SubscriptionOptions sub_options;
+  sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
+
+  sub_filtered_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+    input_topic, qos,
+    std::bind(&PlaceableDetectionComponent::cloudCallback, this, std::placeholders::_1),
+    sub_options);
+
+  return CallbackReturn::SUCCESS;
+}
+
+PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_deactivate(const rclcpp_lifecycle::State &) {
+  RCLCPP_INFO(this->get_logger(), "Deactivating Placeable Detection...");
+
+  // Deactivate Publishers
+  pub_detections_->on_deactivate();
+  pub_debug_cloud_->on_deactivate();
+
+  // Halt Data Flow
+  sub_filtered_cloud_.reset();
+
+  return CallbackReturn::SUCCESS;
+}
+
+PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_cleanup(const rclcpp_lifecycle::State &) {
+  RCLCPP_INFO(this->get_logger(), "Cleaning up Placeable Detection...");
+
+  // Release all heap-allocated objects back to the system
+  pub_detections_.reset();
+  pub_debug_cloud_.reset();
+  tf_broadcaster_.reset();
+
+  cloud_filtered_.reset();
+  cloud_table_zone_.reset();
+  cloud_plane_.reset();
+  cloud_obstacles_.reset();
+  tree_.reset();
+
+  return CallbackReturn::SUCCESS;
+}
+
+PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_shutdown(const rclcpp_lifecycle::State &) {
+  RCLCPP_INFO(this->get_logger(), "Shutting down Floor Detection...");
+  return CallbackReturn::SUCCESS;
+}
+
+void PlaceableDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
+  // Reset PCL buffers
+  cloud_filtered_->clear();
+  cloud_table_zone_->clear();
+  cloud_plane_->clear();
+  cloud_obstacles_->clear();
+
+  pcl::fromROSMsg(*msg, *cloud_filtered_);
+  if (cloud_filtered_->empty()) return;
+
+  // Isolate the table volume
+  PointCloudUtility::applyPassThrough(cloud_filtered_, cloud_table_zone_, "x", params_.place_x_min, params_.place_x_max);
+  PointCloudUtility::applyPassThrough(cloud_table_zone_, cloud_table_zone_, "y", params_.place_y_min, params_.place_y_max);
+  PointCloudUtility::applyPassThrough(cloud_table_zone_, cloud_table_zone_, "z", params_.place_z_min, params_.place_z_max);
+  
+  if (cloud_table_zone_->empty()) return;
+
+  // Plane Segmentation (Find Table Surface)
+  pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+  pcl::ModelCoefficients::Ptr coeffs(new pcl::ModelCoefficients);
+  
+  seg_.setDistanceThreshold(params_.plane_dist_threshold);
+  seg_.setInputCloud(cloud_table_zone_);
+  seg_.segment(*inliers, *coeffs);
+
+  if (inliers->indices.empty()) return;
+
+  extract_.setInputCloud(cloud_table_zone_);
+  extract_.setIndices(inliers);
+  
+  // Get Plane
+  extract_.setNegative(false);
+  extract_.filter(*cloud_plane_);   
+  
+  // Get Obstacles (Everything else)
+  extract_.setNegative(true);
+  extract_.filter(*cloud_obstacles_); 
+
+  if (cloud_plane_->empty()) return;
+
+  // Determine the Searchable Area (Table boundaries minus safety margin)
+  Eigen::Vector4f min_pt, max_pt, centroid;
+  pcl::getMinMax3D(*cloud_plane_, min_pt, max_pt);
+  pcl::compute3DCentroid(*cloud_plane_, centroid);
+
+  // Set up KD-Tree for Obstacle avoidance
+  bool has_obstacles = !cloud_obstacles_->empty();
+  if (has_obstacles) {
+    tree_->setInputCloud(cloud_obstacles_);
+  }
+
+  // Grid Search for the safest spot
+  double best_score = -1.0; 
+  PointT best_point;
+  bool found = false;
+
+  for (double x = min_pt.x() + params_.edge_margin; x < max_pt.x() - params_.edge_margin; x += params_.search_interval) {
+    for (double y = min_pt.y() + params_.edge_margin; y < max_pt.y() - params_.edge_margin; y += params_.search_interval) {
+      
+      PointT search_pt;
+      search_pt.x = x; 
+      search_pt.y = y; 
+      search_pt.z = centroid[2];
+
+      double min_dist_to_obs;
+      if (has_obstacles) {
+        std::vector<int> nn_indices(1);
+        std::vector<float> nn_dists(1);
+        tree_->nearestKSearch(search_pt, 1, nn_indices, nn_dists);
+        min_dist_to_obs = std::sqrt(nn_dists[0]);
+      } else {
+        // If there are no obstacles, any point on the table is perfectly safe
+        min_dist_to_obs = 100.0; 
+      }
+
+      // We want a point that guarantees obstacle tolerance clearance, 
+      // and we prefer the one furthest away from all clutter.
+      if (min_dist_to_obs >= params_.obstacle_tolerance) {
+        if (min_dist_to_obs > best_score) {
+          best_score = min_dist_to_obs;
+          best_point = search_pt;
+          found = true;
         }
+      }
     }
+  }
 
-    if ( min_pot != 1.0 ) {
-        placeable_point.z += 0.01;
-        vision_msgs::msg::Detection3D pose;
-        vision_msgs::msg::ObjectHypothesisWithPose ohwp;
-        ohwp.hypothesis.class_id = "placeable_point";
-        ohwp.hypothesis.score = 1.0;
-        ohwp.pose.pose.position.x = placeable_point.x;
-        ohwp.pose.pose.position.y = placeable_point.y;
-        ohwp.pose.pose.position.z = placeable_point.z;
-        ohwp.pose.pose.orientation.x = 0.;
-        ohwp.pose.pose.orientation.y = 0.;
-        ohwp.pose.pose.orientation.z = 0.;
-        ohwp.pose.pose.orientation.w = 1.;
-        pose.header.stamp = nd_->now();
-        pose.header.frame_id = nd_->get_parameter("base_frame_name").as_string();
-        pose.results.push_back(ohwp);
-        pose.bbox.center.position.x = placeable_point.x;
-        pose.bbox.center.position.y = placeable_point.y;
-        pose.bbox.center.position.z = placeable_point.z;
-        pose.bbox.center.orientation.x = 0.;
-        pose.bbox.center.orientation.y = 0.;
-        pose.bbox.center.orientation.z = 0.;
-        pose.bbox.center.orientation.w = 1.;
-        pose.bbox.size.x = 2 * nd_->get_parameter("placeable.placeable_search_interval").as_double();
-        pose.bbox.size.y = 2 * nd_->get_parameter("placeable.placeable_search_interval").as_double();
-        pose.bbox.size.z = 2 * nd_->get_parameter("placeable.placeable_search_interval").as_double();
-        pose.id = "placeable_point";
-        pose_array->detections.push_back(pose);
-        pcp_.sendTransform(pose.bbox.center, "placeable_point");
-    } else {
-        RCLCPP_ERROR(nd_->get_logger(), "NO Placeable Point");
-    }
+  detection_msg_.detections.clear();
+  detection_msg_.header = msg->header;
 
-    cloud_plane->header.frame_id = nd_->get_parameter("base_frame_name").as_string();
-    cloud->header.frame_id = nd_->get_parameter("base_frame_name").as_string();
-    pcl_conversions::toPCL(nd_->now(), cloud_plane->header.stamp);
-    pcl_conversions::toPCL(nd_->now(), cloud->header.stamp);
+  if (found) {
+    vision_msgs::msg::Detection3D det;
+    det.header = msg->header;
+    det.id = "placeable_pose";
+    det.bbox.center.position.x = best_point.x;
+    det.bbox.center.position.y = best_point.y;
+    det.bbox.center.position.z = best_point.z + 0.01; // Slightly above surface
+    det.bbox.center.orientation.w = 1.0; 
     
-    sensor_msgs::msg::PointCloud2 cloud_plane_msg;
-    pcl::toROSMsg(*cloud_plane, cloud_plane_msg);
-    cloud_plane_msg.header.stamp = nd_->now();
-    cloud_plane_msg.header.frame_id = nd_->get_parameter("base_frame_name").as_string();
-    pub_object_cloud_->publish(cloud_plane_msg);
+    // Bounding Box represents the guaranteed safety clearance
+    det.bbox.size.x = params_.obstacle_tolerance * 2;
+    det.bbox.size.y = params_.obstacle_tolerance * 2;
+    det.bbox.size.z = 0.05;
 
-    sensor_msgs::msg::PointCloud2 cloud_obj_msg;
-    pcl::toROSMsg(*cloud, cloud_obj_msg);
-    cloud_obj_msg.header.stamp = nd_->now();
-    cloud_obj_msg.header.frame_id = nd_->get_parameter("base_frame_name").as_string();
-    pub_placeable_cloud_->publish(cloud_obj_msg);
+    vision_msgs::msg::ObjectHypothesisWithPose hyp;
+    hyp.pose.pose = det.bbox.center;
+    hyp.hypothesis.score = 1.0;
+    det.results.push_back(hyp);
 
-    pub_obj_poses_->publish(*pose_array);
+    detection_msg_.detections.push_back(det);
 
-    RCLCPP_INFO(nd_->get_logger(), "Placeable Point found!!");
-    // RCLCPP_INFO(nd_->get_logger(), "[PlaceablePoseDetection] Object count = %ld", cluster_indices.size());
+    // Broadcast TF
+    geometry_msgs::msg::TransformStamped t;
+    t.header = msg->header;
+    t.child_frame_id = "placeable_pose";
+    t.transform.translation.x = det.bbox.center.position.x;
+    t.transform.translation.y = det.bbox.center.position.y;
+    t.transform.translation.z = det.bbox.center.position.z;
+    t.transform.rotation = det.bbox.center.orientation;
+    tf_broadcaster_->sendTransform(t);
+    
+    pub_detections_->publish(detection_msg_);
+  } else {
+    // If we're looking but can't find a spot, let the user/robot know
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "No safe placement position found on table.");
+  }
+
+  // Debug Cloud Publishing
+  if (pub_debug_cloud_->get_subscription_count() > 0) {
+    auto debug_msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
+    pcl::toROSMsg(*cloud_obstacles_, *debug_msg);
+    debug_msg->header = msg->header;
+    pub_debug_cloud_->publish(std::move(debug_msg));
+  }
 }
+
+}  // namespace pcl_object_detection
+
+#include <rclcpp_components/register_node_macro.hpp>
+RCLCPP_COMPONENTS_REGISTER_NODE(pcl_object_detection::PlaceableDetectionComponent)

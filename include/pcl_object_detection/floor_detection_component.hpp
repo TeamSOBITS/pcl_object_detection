@@ -1,34 +1,108 @@
-#ifndef OBJECT_DETECTION_FLOOR_NODE_HPP
-#define OBJECT_DETECTION_FLOOR_NODE_HPP
+#pragma once
 
-#include <rclcpp/rclcpp.hpp>
+// ROS 2 Lifecycle Core
+#include <rclcpp_lifecycle/lifecycle_node.hpp>
+#include <rclcpp_lifecycle/lifecycle_publisher.hpp>
+
+// ROS 2 Messages & Tools
 #include <sensor_msgs/msg/point_cloud2.hpp>
-#include <sensor_msgs/msg/laser_scan.hpp>
 #include <vision_msgs/msg/detection3_d_array.hpp>
-#include <vision_msgs/msg/detection3_d.hpp>
-#include <vision_msgs/msg/object_hypothesis_with_pose.hpp>
-#include "point_cloud_processor.hpp"
+#include <tf2_ros/transform_broadcaster.h>
 
-class ObjectDetectionFloorNode {
-    public:
-        rclcpp::Node::SharedPtr nd_;
-        ObjectDetectionFloorNode(std::shared_ptr<rclcpp::Node> nd);
+// PCL Core
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/search/kdtree.h>
 
-        void processData(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg);
+// Project Utils
+#include "pcl_object_detection/point_cloud_utility.hpp"
 
-    private:
-        rclcpp::Publisher<vision_msgs::msg::Detection3DArray>::SharedPtr pub_obj_poses_;
-        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_object_cloud_;
+namespace pcl_object_detection {
 
+/**
+ * @class FloorDetectionComponent
+ * @brief Managed ROS 2 Lifecycle Component for detecting objects on the floor.
+ * 
+ * Specifically handles ground plane removal and filters out vertical 
+ * structures like table legs or walls using a continuity check before clustering.
+ */
+class FloorDetectionComponent : public rclcpp_lifecycle::LifecycleNode {
+public:
+  using PointT = pcl::PointXYZ;
+  using PointCloud = pcl::PointCloud<PointT>;
 
-        pcl_object_detection::PointCloudProcessor pcp_;
+  explicit FloorDetectionComponent(const rclcpp::NodeOptions & options);
 
-        double x_min_;
-        double x_max_;
-        double y_min_;
-        double y_max_;
-        double z_min_;
-        double z_max_;
+  // Lifecycle State Transitions
+  using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
+
+  CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
+  CallbackReturn on_activate(const rclcpp_lifecycle::State & state) override;
+  CallbackReturn on_deactivate(const rclcpp_lifecycle::State & state) override;
+  CallbackReturn on_cleanup(const rclcpp_lifecycle::State & state) override;
+  CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
+
+private:
+  /** @brief Main processing callback for incoming filtered point clouds */
+  void cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
+
+  /** 
+   * @brief Check if a cluster is a vertical structure (like a leg or wall).
+   * Logic: Slices the cluster vertically and checks for continuity.
+   */
+  bool isVerticalStructure(const PointCloud::Ptr& cloud, const pcl::PointIndices& cluster);
+
+  // ROS 2 Communication
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_filtered_cloud_;
+  std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<vision_msgs::msg::Detection3DArray>> pub_detections_;
+  std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>> pub_debug_cloud_;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+
+  // PCL Processing Objects
+  PointCloud::Ptr cloud_filtered_;
+  PointCloud::Ptr cloud_objects_;
+  PointCloud::Ptr cloud_floor_zone_;
+  
+  pcl::SACSegmentation<PointT> seg_;
+  pcl::EuclideanClusterExtraction<PointT> ec_;
+  pcl::search::KdTree<PointT>::Ptr tree_;
+  pcl::ExtractIndices<PointT> extract_;
+
+  // Parameters
+  struct {
+    std::string base_frame;
+
+    // Floor physical bounds
+    double floor_height_min;
+    double floor_height_max;
+
+    // Plane segmentation parameters
+    double plane_dist_threshold;
+
+    // Clustering parameters
+    double cluster_tolerance;
+    int min_cluster_size;
+    int max_cluster_size;
+    int ransac_max_iterations;
+
+    // Vertical Structure Filter Params
+    bool use_vertical_filter;
+    double slice_thickness;
+    double xy_cell_size;
+    double required_continuity;
+    int min_pts_per_cell;
+
+    // Object size constraints
+    double obj_x_min, obj_x_max;
+    double obj_y_min, obj_y_max;
+    double obj_z_min, obj_z_max;
+  } params_;
+
+  // Pre-allocated message container
+  vision_msgs::msg::Detection3DArray detection_msg_;
 };
 
-#endif // OBJECT_DETECTION_FLOOR_NODE_HPP
+}  // namespace pcl_object_detection

@@ -1,120 +1,185 @@
-#include "pcl_object_detection/line_detection.hpp"
+#include "pcl_object_detection/line_detection_component.hpp"
+
 #include <pcl_conversions/pcl_conversions.h>
 
-LineDetectionNode::LineDetectionNode(std::shared_ptr<rclcpp::Node> nd) : nd_(nd),pcp_(nd){
-    nd_->declare_parameter("scan_topic_name","/hsrb/base_scan");
-    // nd_->declare_parameter("base_frame_name", "base_footprint");
-    nd_->declare_parameter("passthrough_y_min",-1.0);
-    nd_->declare_parameter("passthrough_y_max",1.0);
-    nd_->declare_parameter("nead_marker",true);
-    nd_->declare_parameter("nead_cloud_line",true);
-    nd_->declare_parameter("nead_info",true);
-    nd_->declare_parameter("execute_flag",true);
+namespace pcl_object_detection {
 
-    scan_topic_name_ = nd_->get_parameter("scan_topic_name").as_string();
-    target_frame_ = nd_->get_parameter("base_frame_name").as_string();
-    execute_flag = nd_->get_parameter("execute_flag").as_bool();
-    run_ctrl_server_ = nd_->create_service<std_srvs::srv::SetBool>(
-          "/pcl_line_detection/run_ctrl", std::bind(&LineDetectionNode::execute_ctrl_server, this, std::placeholders::_1, std::placeholders::_2));
-
-    pub_line_cloud_ = nd_->create_publisher<sensor_msgs::msg::PointCloud2>("/pcl_line_detection/line_cloud", 10);
-    pub_angle_ = nd_->create_publisher<std_msgs::msg::Float64>("/pcl_line_detection/line_angle", 10);
-    pub_distance_ = nd_->create_publisher<std_msgs::msg::Float64>("/pcl_line_detection/line_distance", 10);
-    auto sensor_qos = rclcpp::QoS(rclcpp::SensorDataQoS()); // センサーデータ用のQoS
-    sub_points_ = nd_->create_subscription<sensor_msgs::msg::LaserScan>(
-        scan_topic_name_,
-        sensor_qos,
-        std::bind(&LineDetectionNode::processData, this, std::placeholders::_1));
-    RCLCPP_INFO(nd_->get_logger(), "LineDetectionNode successfully initialized and ready.");
-    RCLCPP_INFO(nd_->get_logger(), "Subscribing to '%s'", this->scan_topic_name_.c_str());
+LineDetectionComponent::LineDetectionComponent(const rclcpp::NodeOptions & options)
+: rclcpp_lifecycle::LifecycleNode("line_detection", options) {
+  this->declare_parameter<std::string>("input_topic", "/scan");
+  this->declare_parameter<std::string>("base_frame", "base_footprint");
+  this->declare_parameter<std::string>("passthrough_axis", "y");
+  this->declare_parameter<double>("passthrough_min", -1.0);
+  this->declare_parameter<double>("passthrough_max", 1.0);
+  this->declare_parameter<double>("distance_threshold", 0.02);
+  this->declare_parameter<double>("probability", 0.95);
+  this->declare_parameter<int>("ransac_max_iterations", 1000);
 }
 
-void LineDetectionNode::processData(const sensor_msgs::msg::LaserScan::SharedPtr scan2d_msg) {
-    if (!execute_flag){return;}
-    RCLCPP_INFO(nd_->get_logger(), "processData");
-    PointCloud::Ptr cloud_scan2d (new PointCloud());
-    PointCloud::Ptr cloud_line( new PointCloud() );
-    pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
-    pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
-    auto line_angle_deg = std::make_shared<std_msgs::msg::Float64>();
-    // auto info = std::make_shared<pcl_object_detection::msg::LineInfo>();
-    Eigen::Vector4f centroid;
-    auto angle_deg_ = std_msgs::msg::Float64();
-    auto distance_ = std_msgs::msg::Float64();
-    pcp_.setPassThroughParameters("y", nd_->get_parameter("passthrough_y_min").as_double(), nd_->get_parameter("passthrough_y_max").as_double());
-    pcp_.setSACSegmentationParameter(pcl::SACMODEL_LINE, pcl::SAC_RANSAC);
+LineDetectionComponent::CallbackReturn LineDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
+  RCLCPP_INFO(this->get_logger(), "Configuring Line Detection...");
 
-    if ( !pcp_.transformFrameScan2D2PointCloud( scan2d_msg, cloud_scan2d ) ) return;
-    pcp_.passThrough( cloud_scan2d, cloud_scan2d );
+  // Read Parameters into Struct
+  params_.base_frame = this->get_parameter("base_frame").as_string();
+  params_.passthrough_axis = this->get_parameter("passthrough_axis").as_string();
+  params_.passthrough_min = this->get_parameter("passthrough_min").as_double();
+  params_.passthrough_max = this->get_parameter("passthrough_max").as_double();
+  params_.distance_threshold = this->get_parameter("distance_threshold").as_double();
+  params_.probability = this->get_parameter("probability").as_double();
+  params_.ransac_max_iterations = this->get_parameter("ransac_max_iterations").as_int();
 
-    pcp_.sacSegmentation( cloud_scan2d, inliers, coefficients );
-    pcp_.extractIndices( cloud_scan2d, cloud_line, inliers, false );
-    pcl::compute3DCentroid( *cloud_line, centroid );
+  // Log Parameters
+  RCLCPP_INFO(this->get_logger(), "Parameters Loaded:");
+  RCLCPP_INFO(this->get_logger(), "Base Frame: %s", params_.base_frame.c_str());
+  RCLCPP_INFO(this->get_logger(), "Passthrough:");
+  RCLCPP_INFO(this->get_logger(), "  Axis: %s", params_.passthrough_axis.c_str());
+  RCLCPP_INFO(this->get_logger(), "  Min: %f", params_.passthrough_min);
+  RCLCPP_INFO(this->get_logger(), "  Max: %f", params_.passthrough_max);
+  RCLCPP_INFO(this->get_logger(), "Distance Threshold: %f", params_.distance_threshold);
+  RCLCPP_INFO(this->get_logger(), "Probability: %f", params_.probability);
+  RCLCPP_INFO(this->get_logger(), "Max RANSAC Iterations: %d", params_.ransac_max_iterations);
 
-    cloud_line->header.frame_id = cloud_scan2d->header.frame_id;
-    angle_deg_.data = coefficients->values[3]*(180/M_PI);
-    distance_.data = std::hypotf( centroid.x(), centroid.y() );
+  // Allocate PCL Memory
+  cloud_raw_ = std::make_shared<PointCloud>();
+  cloud_line_ = std::make_shared<PointCloud>();
 
-    RCLCPP_INFO(nd_->get_logger(), "[LineDetection] Angle[deg] = %.2lf, Distance[m] = %.2lf", angle_deg_.data, distance_.data);
+  // Configure PCL Defaults
+  seg_.setOptimizeCoefficients(true);
+  seg_.setModelType(pcl::SACMODEL_LINE);
+  seg_.setMethodType(pcl::SAC_RANSAC);
+  seg_.setMaxIterations(params_.ransac_max_iterations);
 
-    pcl_conversions::toPCL(nd_->get_clock()->now(), cloud_line->header.stamp);
+  // Create Lifecycle Publishers
+  auto qos = rclcpp::SensorDataQoS();
+  pub_line_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("line_cloud", qos);
+  pub_line_pose_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("line_pose", 10);
 
-    if ( nd_->get_parameter("nead_cloud_line").as_bool() ) {
-        sensor_msgs::msg::PointCloud2 cloud_line_msg;
-        pcl::toROSMsg(*cloud_line, cloud_line_msg);
-        cloud_line_msg.header.stamp = nd_->now();
-        cloud_line_msg.header.frame_id = target_frame_;  // 必要に応じてフレームIDを設定
-        pub_line_cloud_->publish(cloud_line_msg);
-    }
-    if ( nd_->get_parameter("nead_info").as_bool() ) {
-        pub_angle_->publish(angle_deg_);
-        pub_distance_->publish(distance_);
-    }
+  return CallbackReturn::SUCCESS;
 }
 
+LineDetectionComponent::CallbackReturn LineDetectionComponent::on_activate(const rclcpp_lifecycle::State &) {
+  RCLCPP_INFO(this->get_logger(), "Activating Line Detection...");
 
-bool LineDetectionNode::execute_ctrl_server(const std::shared_ptr<std_srvs::srv::SetBool::Request> req, 
-                                    std::shared_ptr<std_srvs::srv::SetBool::Response> res) {
-    execute_flag = req->data;  // Access the boolean request data
-    if (execute_flag) {
-        RCLCPP_INFO(nd_->get_logger(), "Start Line_Detect.");
-        res->message = "Start Line_Detect.";  // Set a message in the response
-    } else {
-        RCLCPP_INFO(nd_->get_logger(), "Stop Line_Detect.");
-        res->message = "Stop Line_Detect.";  // Set a message in the response
-    }
-    res->success = true;  // Indicate the service call was successful
-    return true;
+  // Activate Publishers
+  pub_line_cloud_->on_activate();
+  pub_line_pose_->on_activate();
+
+  // Start Data Flow via Subscription
+  auto qos = rclcpp::SensorDataQoS();
+  std::string input_topic = this->get_parameter("input_topic").as_string();
+
+  // Enable IPC explicitly for the subscriber
+  rclcpp::SubscriptionOptions sub_options;
+  sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
+
+  sub_scan_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+    input_topic, qos,
+    std::bind(&LineDetectionComponent::scanCallback, this, std::placeholders::_1),
+    sub_options);
+
+  return CallbackReturn::SUCCESS;
 }
 
-int main(int argc, char** argv) {
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<rclcpp::Node>("pcl_line_detection");
-    node->declare_parameter("base_frame_name", "base_footprint");
-    node->declare_parameter("publish_cloud_detection_range", true);
-    node->declare_parameter("publish_cloud_object", true);
-    node->declare_parameter("publish_pose_array", true);
-    node->declare_parameter("use_tf", true);
+LineDetectionComponent::CallbackReturn LineDetectionComponent::on_deactivate(const rclcpp_lifecycle::State &) {
+  RCLCPP_INFO(this->get_logger(), "Deactivating Line Detection...");
 
-    node->declare_parameter("use_voxel", false);
-    node->declare_parameter("leaf_size", 0.01);
+  // Deactivate Publishers
+  pub_line_cloud_->on_deactivate();
+  pub_line_pose_->on_deactivate();
+  
+  // Halt data flow
+  sub_scan_.reset();
 
-    node->declare_parameter("cluster_tolerance", 0.03);
-    node->declare_parameter("min_cluster_point_size", 200);
-    node->declare_parameter("max_cluster_point_size", 10000);
-
-    node->declare_parameter("threshold_distance", 0.03);
-    node->declare_parameter("probability", 0.95);
-
-    node->declare_parameter("object_size_x_min",  0.00);
-    node->declare_parameter("object_size_x_max",  0.40);
-    node->declare_parameter("object_size_y_min", -0.20);
-    node->declare_parameter("object_size_y_max",  0.20);
-    node->declare_parameter("object_size_z_min", -0.20);
-    node->declare_parameter("object_size_z_max",  0.40);
-    // std::make_shared<LineDetectionNode>(node);
-    auto line_detection_instance = std::make_shared<LineDetectionNode>(node); 
-    rclcpp::spin(node);
-    rclcpp::shutdown();
-    return 0;
+  return CallbackReturn::SUCCESS;
 }
+
+LineDetectionComponent::CallbackReturn LineDetectionComponent::on_cleanup(const rclcpp_lifecycle::State &) {
+  RCLCPP_INFO(this->get_logger(), "Cleaning up Line Detection...");
+
+  // Release all heap-allocated objects back to the system
+  pub_line_cloud_.reset();
+  pub_line_pose_.reset();
+
+  cloud_raw_.reset();
+  cloud_line_.reset();
+
+  return CallbackReturn::SUCCESS;
+}
+
+LineDetectionComponent::CallbackReturn LineDetectionComponent::on_shutdown(const rclcpp_lifecycle::State &) {
+  RCLCPP_INFO(this->get_logger(), "Shutting down Line Detection...");
+  return CallbackReturn::SUCCESS;
+}
+
+void LineDetectionComponent::scanCallback(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg) {
+  // Reset PCL buffers
+  cloud_raw_->clear();
+  cloud_line_->clear();
+
+  // Project 2D Scan to 3D PointCloud
+  sensor_msgs::msg::PointCloud2 pc2_msg;
+  try {
+    projector_.projectLaser(*msg, pc2_msg);
+  } catch (const std::exception& e) {
+    RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Scan projection failed: %s", e.what());
+    return;
+  }
+  pcl::fromROSMsg(pc2_msg, *cloud_raw_);
+
+  if (cloud_raw_->empty()) return;
+
+  // Filter area of interest
+  PointCloudUtility::applyPassThrough(
+    cloud_raw_, cloud_raw_, params_.passthrough_axis, 
+    params_.passthrough_min, params_.passthrough_max);
+
+  if (cloud_raw_->empty()) return;
+
+  // RANSAC Line Fitting
+  pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+  pcl::ModelCoefficients::Ptr coeffs(new pcl::ModelCoefficients);
+  
+  seg_.setDistanceThreshold(params_.distance_threshold);
+  seg_.setProbability(params_.probability);
+  seg_.setInputCloud(cloud_raw_);
+  seg_.segment(*inliers, *coeffs);
+
+  if (inliers->indices.empty()) return;
+
+  // Extract Line Points
+  extract_.setInputCloud(cloud_raw_);
+  extract_.setIndices(inliers);
+  extract_.setNegative(false);
+  extract_.filter(*cloud_line_);
+
+  // Calculate Geometry
+  Eigen::Vector3f point_on_line(coeffs->values[0], coeffs->values[1], coeffs->values[2]);
+  Eigen::Vector3f line_dir(coeffs->values[3], coeffs->values[4], coeffs->values[5]);
+
+  double yaw = std::atan2(line_dir.y(), line_dir.x());
+
+  // Create Pose message
+  geometry_msgs::msg::PoseStamped pose_msg;
+  pose_msg.header = msg->header;
+  
+  pose_msg.pose.position.x = point_on_line.x();
+  pose_msg.pose.position.y = point_on_line.y();
+  pose_msg.pose.position.z = point_on_line.z();
+  pose_msg.pose.orientation.z = std::sin(yaw / 2.0);
+  pose_msg.pose.orientation.w = std::cos(yaw / 2.0);
+
+  pub_line_pose_->publish(pose_msg);
+
+  // Debug Cloud Publishing
+  if (pub_line_cloud_->get_subscription_count() > 0) {
+    auto output_msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
+    pcl::toROSMsg(*cloud_line_, *output_msg);
+    output_msg->header = msg->header;
+    pub_line_cloud_->publish(std::move(output_msg));
+  }
+}
+
+}  // namespace pcl_object_detection
+
+#include <rclcpp_components/register_node_macro.hpp>
+RCLCPP_COMPONENTS_REGISTER_NODE(pcl_object_detection::LineDetectionComponent)

@@ -12,11 +12,11 @@ TableDetectionComponent::TableDetectionComponent(const rclcpp::NodeOptions & opt
   this->declare_parameter<std::string>("base_frame", "base_footprint");
   this->declare_parameter<double>("table_height_min", 0.5);
   this->declare_parameter<double>("table_height_max", 1.2);
-  this->declare_parameter<double>("plane_distance_threshold", 0.02);
+  this->declare_parameter<double>("plane_dist_threshold", 0.02);
   this->declare_parameter<double>("cluster_tolerance", 0.03);
   this->declare_parameter<int>("min_cluster_size", 100);
   this->declare_parameter<int>("max_cluster_size", 5000);
-  this->declare_parameter<int>("max_iterations", 200);
+  this->declare_parameter<int>("ransac_max_iterations", 200);
 
   this->declare_parameter<double>("object_size_x_min", 0.02);
   this->declare_parameter<double>("object_size_x_max", 0.30);
@@ -33,48 +33,49 @@ TableDetectionComponent::CallbackReturn TableDetectionComponent::on_configure(co
   params_.base_frame = this->get_parameter("base_frame").as_string();
   params_.table_height_min = this->get_parameter("table_height_min").as_double();
   params_.table_height_max = this->get_parameter("table_height_max").as_double();
-  params_.plane_distance_threshold = this->get_parameter("plane_distance_threshold").as_double();
+  params_.plane_dist_threshold = this->get_parameter("plane_dist_threshold").as_double();
   params_.cluster_tolerance = this->get_parameter("cluster_tolerance").as_double();
   params_.min_cluster_size = this->get_parameter("min_cluster_size").as_int();
   params_.max_cluster_size = this->get_parameter("max_cluster_size").as_int();
-  params_.max_iterations = this->get_parameter("max_iterations").as_int();
+  params_.ransac_max_iterations = this->get_parameter("ransac_max_iterations").as_int();
 
-  params_.size_x_min = this->get_parameter("object_size_x_min").as_double();
-  params_.size_x_max = this->get_parameter("object_size_x_max").as_double();
-  params_.size_y_min = this->get_parameter("object_size_y_min").as_double();
-  params_.size_y_max = this->get_parameter("object_size_y_max").as_double();
-  params_.size_z_min = this->get_parameter("object_size_z_min").as_double();
-  params_.size_z_max = this->get_parameter("object_size_z_max").as_double();
+  params_.obj_x_min = this->get_parameter("object_size_x_min").as_double();
+  params_.obj_x_max = this->get_parameter("object_size_x_max").as_double();
+  params_.obj_y_min = this->get_parameter("object_size_y_min").as_double();
+  params_.obj_y_max = this->get_parameter("object_size_y_max").as_double();
+  params_.obj_z_min = this->get_parameter("object_size_z_min").as_double();
+  params_.obj_z_max = this->get_parameter("object_size_z_max").as_double();
 
-  ROSCPP_INFO(this->get_logger(), "Parameters Loaded:");
-  ROSCPP_INFO(this->get_logger(), "Base Frame: %s", params_.base_frame.c_str());
-  ROSCPP_INFO(this->get_logger(), "Table Height Min: %f", params_.table_height_min);
-  ROSCPP_INFO(this->get_logger(), "Table Height Max: %f", params_.table_height_max);
-  ROSCPP_INFO(this->get_logger(), "Plane Distance Threshold: %f", params_.plane_distance_threshold);
-  ROSCPP_INFO(this->get_logger(), "Cluster Tolerance: %f", params_.cluster_tolerance);
-  ROSCPP_INFO(this->get_logger(), "Min Cluster Size: %d", params_.min_cluster_size);
-  ROSCPP_INFO(this->get_logger(), "Max Cluster Size: %d", params_.max_cluster_size);
-  ROSCPP_INFO(this->get_logger(), "Max Iterations: %d", params_.max_iterations);
+  // Log Parameters
+  RCLCPP_INFO(this->get_logger(), "Parameters Loaded:");
+  RCLCPP_INFO(this->get_logger(), "Base Frame: %s", params_.base_frame.c_str());
+  RCLCPP_INFO(this->get_logger(), "Table Height Min: %f", params_.table_height_min);
+  RCLCPP_INFO(this->get_logger(), "Table Height Max: %f", params_.table_height_max);
+  RCLCPP_INFO(this->get_logger(), "Plane Distance Threshold: %f", params_.plane_dist_threshold);
+  RCLCPP_INFO(this->get_logger(), "Clustering:");
+  RCLCPP_INFO(this->get_logger(), "  Tolerance: %f", params_.cluster_tolerance);
+  RCLCPP_INFO(this->get_logger(), "  Min Size: %d", params_.min_cluster_size);
+  RCLCPP_INFO(this->get_logger(), "  Max Size: %d", params_.max_cluster_size);
+  RCLCPP_INFO(this->get_logger(), "Max RANSAC Iterations: %d", params_.ransac_max_iterations);
+  RCLCPP_INFO(this->get_logger(), "Object Size Constraints:");
+  RCLCPP_INFO(this->get_logger(), "  X: [%f, %f]", params_.obj_x_min, params_.obj_x_max);
+  RCLCPP_INFO(this->get_logger(), "  Y: [%f, %f]", params_.obj_y_min, params_.obj_y_max);
+  RCLCPP_INFO(this->get_logger(), "  Z: [%f, %f]", params_.obj_z_min, params_.obj_z_max);
 
-  ROSCPP_INFO(this->get_logger(), "Object Size Constraints:");
-  ROSCPP_INFO(this->get_logger(), "X: [%f, %f]", params_.size_x_min, params_.size_x_max);
-  ROSCPP_INFO(this->get_logger(), "Y: [%f, %f]", params_.size_y_min, params_.size_y_max);
-  ROSCPP_INFO(this->get_logger(), "Z: [%f, %f]", params_.size_z_min, params_.size_z_max);
-
-  // Allocate Memory for PCL objects once
+  // Allocate PCL memory
   cloud_filtered_ = std::make_shared<PointCloud>();
   cloud_objects_ = std::make_shared<PointCloud>();
   cloud_table_zone_ = std::make_shared<PointCloud>();
   tree_ = std::make_shared<pcl::search::KdTree<PointT>>();
 
-  // Configure PCL algorithms
+  // Configure PCL Defaults
   seg_.setOptimizeCoefficients(true);
   seg_.setModelType(pcl::SACMODEL_PLANE);
   seg_.setMethodType(pcl::SAC_RANSAC);
-  seg_.setMaxIterations(params_.max_iterations);
+  seg_.setMaxIterations(params_.ransac_max_iterations);
   ec_.setSearchMethod(tree_);
 
-  // Create Lifecycle Publishers and TF Broadcaster
+  // Create Publishers and TF Broadcaster
   auto qos = rclcpp::SensorDataQoS();
   pub_detections_ = this->create_publisher<vision_msgs::msg::Detection3DArray>("table_objects", 10);
   pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("table_debug_cloud", qos);
@@ -161,7 +162,7 @@ void TableDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud2:
   pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
   pcl::ModelCoefficients::Ptr coeffs(new pcl::ModelCoefficients);
   
-  seg_.setDistanceThreshold(params_.plane_distance_threshold);
+  seg_.setDistanceThreshold(params_.plane_dist_threshold);
   seg_.setInputCloud(cloud_table_zone_);
   seg_.segment(*inliers, *coeffs);
 
@@ -191,9 +192,9 @@ void TableDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud2:
     auto box = PointCloudUtility::computePCAAlignedBox(cloud_objects_, cluster);
 
     // Size Filtering
-    if (box.size.x < params_.size_x_min || box.size.x > params_.size_x_max ||
-        box.size.y < params_.size_y_min || box.size.y > params_.size_y_max ||
-        box.size.z < params_.size_z_min || box.size.z > params_.size_z_max) {
+    if (box.size.x < params_.obj_x_min || box.size.x > params_.obj_x_max ||
+        box.size.y < params_.obj_y_min || box.size.y > params_.obj_y_max ||
+        box.size.z < params_.obj_z_min || box.size.z > params_.obj_z_max) {
       continue;
     }
 
@@ -204,6 +205,7 @@ void TableDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud2:
     
     vision_msgs::msg::ObjectHypothesisWithPose hyp;
     hyp.pose.pose = det.bbox.center;
+    hyp.hypothesis.score = 1.0;
     det.results.push_back(hyp);
 
     detection_msg_.detections.push_back(det);

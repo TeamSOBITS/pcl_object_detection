@@ -1,10 +1,10 @@
 #pragma once
 
-// ROS 2 Core
-#include <rclcpp/rclcpp.hpp>
+// ROS 2 Lifecycle Core
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 #include <rclcpp_lifecycle/lifecycle_publisher.hpp>
 
+// ROS 2 Messages & Tools
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <vision_msgs/msg/detection3_d_array.hpp>
 #include <tf2_ros/transform_broadcaster.h>
@@ -37,7 +37,7 @@ public:
 
   explicit TableDetectionComponent(const rclcpp::NodeOptions & options);
 
-  // --- Lifecycle Callbacks ---
+  // Lifecycle State Transitions
   using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
   CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
@@ -49,9 +49,6 @@ public:
 private:
   /** @brief Main processing callback for incoming filtered point clouds */
   void cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
-
-  /** @brief Declare and initialize all ROS 2 parameters */
-  void declareParameters();
 
   // ROS 2 Communication
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_filtered_cloud_;
@@ -72,18 +69,24 @@ private:
   // Parameters
   struct {
     std::string base_frame;
+  
+    // Table physical bounds
     double table_height_min;
     double table_height_max;
-    double plane_distance_threshold;
+  
+    // Plane segmentation parameters
+    double plane_dist_threshold;
+
+    // Clustering parameters
     double cluster_tolerance;
     int min_cluster_size;
     int max_cluster_size;
-    int max_iterations;
+    int ransac_max_iterations;
 
     // Object size constraints
-    double size_x_min, size_x_max;
-    double size_y_min, size_y_max;
-    double size_z_min, size_z_max;
+    double obj_x_min, obj_x_max;
+    double obj_y_min, obj_y_max;
+    double obj_z_min, obj_z_max;
   } params_;
 
   // Pre-allocated message container
