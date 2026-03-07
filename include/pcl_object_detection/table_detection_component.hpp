@@ -25,11 +25,10 @@ namespace pcl_object_detection {
 
 /**
  * @class TableDetectionComponent
- * @brief ROS 2 Component for rule-based object detection on horizontal surfaces.
+ * @brief Managed ROS 2 Lifecycle Component for detecting objects on horizontal surfaces.
  * 
- * This node subscribes to a filtered point cloud, identifies the primary table plane,
- * and extracts/clusters objects sitting on top of it. It uses PCA for orientation 
- * and manual projection for optimized bounding box calculation.
+ * Subscribes to the filtered point cloud only when activated. Computes bounding
+ * boxes using PCA to provide highly accurate 3D detections with orientation.
  */
 class TableDetectionComponent : public rclcpp_lifecycle::LifecycleNode {
 public:
@@ -77,17 +76,15 @@ private:
     double table_height_max;
     double plane_distance_threshold;
     double cluster_tolerance;
-    int max_iterations;
     int min_cluster_size;
     int max_cluster_size;
+    int max_iterations;
 
     // Object size constraints
     double size_x_min, size_x_max;
     double size_y_min, size_y_max;
     double size_z_min, size_z_max;
   } params_;
-
-  bool enabled_;
 
   // Pre-allocated message container
   vision_msgs::msg::Detection3DArray detection_msg_;
