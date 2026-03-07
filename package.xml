@@ -2,48 +2,49 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>pcl_object_detection</name>
-  <version>0.0.0</version>
-  <description>
-    The pcl_object_detection package provides components for detecting objects in point clouds.
-  </description>
-  <maintainer email="fumiyaono.choi@gmail.com">OnoFumiya</maintainer>
-  <license>BSD</license>
-
-  <url type="website">https://home.soka.ac.jp/~choi/index.html</url>
-  <url type="repository">https://github.com/TeamSOBITS/pcl_object_detection</url>
-  <url type="bugtracker">https://github.com/TeamSOBITS/pcl_object_detection/issues</url>
-
-  <author email="choi.7f@gmail.com">Team SOBITS</author>
-
-  <!-- <build_type>ament_cmake</build_type> -->
+  <version>2.0.0</version>
+  <description>Lifecycle-managed ROS 2 Jazzy perception suite using PCL.</description>
+  <maintainer email="team.sobits@gmail.com">TeamSOBITS</maintainer>
+  <license>BSD-3-Clause</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <!-- ROS 2 Core Dependencies -->
   <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
+  
+  <!-- Lifecycle Additions -->
+  <depend>rclcpp_lifecycle</depend>
+  <depend>lifecycle_msgs</depend>
+
+  <!-- Message & Logic Dependencies -->
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>vision_msgs</depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
-  <depend>geometry_msgs</depend>
   <depend>laser_geometry</depend>
-  <depend>pcl_conversions</depend>
-  <depend>pcl_ros</depend>
-  <depend>rclcpp_components</depend>
+
+  <!-- Transform and Math Dependencies -->
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
-  <depend>tf2_geometry_msgs</depend>
   <depend>tf2_eigen</depend>
-  <depend>sobits_interfaces</depend>
+  <depend>tf2_geometry_msgs</depend>
 
+  <!-- PCL and ROS-PCL Wrappers -->
+  <depend>libpcl-all-dev</depend>
+  <depend>pcl_conversions</depend>
+  <depend>pcl_ros</depend>
+
+  <!-- Launch Dependencies -->
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+
+  <!-- Linting -->
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
-
-  
-
-  <!-- <member_of_group>rosidl_interface_packages</member_of_group> -->
-
-  <!-- <exec_depend>rosidl_default_runtime</exec_depend> -->
 
   <export>
     <build_type>ament_cmake</build_type>
   </export>
-
 </package>
