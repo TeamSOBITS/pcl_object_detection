@@ -10,35 +10,12 @@
 
 # PCL Object Detection
 
-<!-- Table of Contents -->
-<details>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li>
-      <a href="#overview">Overview</a>
-    </li>
-    <li>
-      <a href="#setup">Setup</a>
-      <ul>
-        <li><a href="#environment">Environment</a></li>
-        <li><a href="#installation">Installation</a></li>
-      </ul>
-    </li>
-    <li><a href="#usage">Usage</a></li>
-    <li><a href="#milestones">Milestones</a></li>
-    <li><a href="#change-log">Change Log</a></li>
-    <!-- <li><a href="#contributing">Contributing</a></li> -->
-    <!-- <li><a href="#license">License</a></li> -->
-    <li><a href="#references">References</a></li>
-  </ol>
-</details>
-
-
-<!-- Overview of the Repository -->
 ## Overview
 
-- Rule-based object detection package using the Point Cloud Library.
-- Detects lines from Lidar information.
+- A high-performance, component-based object detection package for ROS 2 Jazzy.
+- Utilizes the **Point Cloud Library (PCL)** for rule-based detection.
+- Architecture: **ROS 2 Lifecycle Nodes** with **Zero-Copy Intra-Process Communication**.
+- Modes: Floor, Table, Shelf, Placeable Positions, and 2D-LiDAR Line Detection.
 
 <p align="right">(<a href="#readme-top">Back to Top</a>)</p>
 
@@ -57,8 +34,8 @@ Below are the system requirements for normal operation.
 
 | System  | Version |
 | ------------- | ------------- |
-| Ubuntu | 20.04 (Focal Fossa) |
-| ROS | Noetic Ninjemys |
+| Ubuntu | 24.04 (Noble Numbat) |
+| ROS | Jazzy Jalisco |
 
 > [!NOTE]
 > If you need to install `Ubuntu` or `ROS`, please check our [SOBITS Manual](https://github.com/TeamSOBITS/sobits_manual#%E9%96%8B%E7%99%BA%E7%92%B0%E5%A2%83%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6).
@@ -67,16 +44,15 @@ Below are the system requirements for normal operation.
 
 
 ### Installation
+
 1. Move to the `src` folder of your ROS workspace.
    ```bash
-   $ roscd
-   # roscd is equivalent to "cd ~/catkin_ws/" depending on the configuration
-   $ cd src/
+   $ cd ~/colcon_ws/src/
    ```
 
 2. Clone this repository.
    ```bash
-   $ git clone https://github.com/TeamSOBITS/pcl_object_detection.git
+   $ git clone -b jazzy-devel https://github.com/TeamSOBITS/pcl_object_detection.git
    ```
 
 3. Install the dependent packages.
@@ -86,114 +62,55 @@ Below are the system requirements for normal operation.
 
 4. Compile the package.
    ```bash
-   $ roscd
-   $ catkin_make
+   $ cd ~/colcon_ws
+   $ colcon build --symlink-install
    ```
 
 <p align="right">(<a href="#readme-top">Back to Top</a>)</p>
 
 
-<!-- Usage -->
 ## Usage
+The system runs as a single `ComposableNodeContainer` to enable zero-copy memory sharing. 
 
-### [point_cloud_object_detection.launch](launch/point_cloud_object_detection.launch)
-<!-- It would be helpful to have a demo execution method or screenshots -->
-- Performs object detection on the table, floor, and shelf, and detects placement positions
-- Detection positions are output through topic communication and TF
-- Each detection mode can be changed through service communication
-
-| Mode | Function |
-| --- | --- |
-| 0 | OFF |
-| 1 | table mode - [Parameters](param/object_detection_table_param.yaml)  |
-| 2 | floor mode - [Parameters](param/object_detection_floor_param.yaml) |
-| 3 | shelf mode - [Parameters](param/object_detection_shelf_param.yaml) |
-| 4 | placeble mode - [Parameters](param/placeable_postion_detection_param.yaml) |
-
-- Details can be found [here](doc/md/point_cloud_object_detection.md).
-
+Launch the container:
 ```bash
-# with rviz
-$ roslaunch point_cloud_object_detection point_cloud_object_detection.launch
-# without rviz
-$ roslaunch point_cloud_object_detection point_cloud_object_detection.launch rviz:=false
-# parameter adjustment via rqt_reconfigure
-$ roslaunch point_cloud_object_detection point_cloud_object_detection.launch rqt_reconfigure:=true
+ros2 launch pcl_object_detection pcl_object_detection.launch.py
 ```
 
-> [!NOTE]
-> While rqt_reconfigure allows dynamic parameter changes, the parameter file is not overwritten. Therefore, modify manually the parameter file.
-
-<div align="center">
-    <img src="doc/img/table.png" width="1080">
-    <!-- <img src="doc/img/floor.png" width="1080"> -->
-    <!-- <img src="doc/img/placeable.png" width="1080"> -->
-</div>
-
 <p align="right">(<a href="#readme-top">Back to Top</a>)</p>
 
 
-### [line_detection.launch](launch/line_detection.launch)
+### Lifecycle Management
 
-- Detects lines from point clouds obtained from a 2D-LiDAR sensor
-- Details can be found [here](doc/md/line_detection.md).
+This package uses **ROS 2 Lifecycle Nodes**. By default, all detection workers are `Unconfigured`. You must manage their state to begin processing.
 
-```bash
-# with rviz
-$ roslaunch point_cloud_object_detection line_detection_param.launch
-# without rviz
-$ roslaunch point_cloud_object_detection line_detection_param.launch rviz:=false
-# parameter adjustment via rqt_reconfigure
-$ roslaunch point_cloud_object_detection line_detection_param.launch rqt_reconfigure:=true
-```
+#### Workflow Example (Table Detection)
 
-> [!NOTE]
-> While rqt_reconfigure allows dynamic parameter changes, the parameter file is not overwritten. Therefore, modify manually the parameter file.
+1. **Configure** (Allocates memory and loads parameters):
+   ```bash
+   ros2 lifecycle set /pcl_object_detection/table_detection configure
+   ```
+2. **Activate** (Starts data subscription and processing):
+   ```bash
+   ros2 lifecycle set /pcl_object_detection/table_detection activate
+   ```
+3. **Deactivate** (Stops processing immediately, 0% CPU overhead):
+   ```bash
+   ros2 lifecycle set /pcl_object_detection/table_detection deactivate
+   ```
 
-<div align="center">
-    <img src="doc/img/line_detection.png" width="1080">
-</div>
+| Mode | Node Name | Function |
+| --- | --- | --- |
+| 1 | `table_detection` | Detect objects on horizontal surface |
+| 2 | `floor_detection` | Detect objects on floor (includes leg filtering) |
+| 3 | `shelf_detection` | Detect objects in storage bins |
+| 4 | `placeable_detection`| Find empty space for object placement |
+| 5 | `line_detection` | Detect lines from 2D LiDAR |
 
-<p align="right">(<a href="#readme-top">Back to Top</a>)</p>
-
-
-### [demo.launch](launch/demo/demo.launch)
-```bash
-# TABLE_MODE
-$ roslaunch pcl_object_detection demo.launch detection_mode:=1
-# FLOOR_MODE
-$ roslaunch pcl_object_detection demo.launch detection_mode:=2
-# SHELF_MODE
-$ roslaunch pcl_object_detection demo.launch detection_mode:=3
-# PLACEABLE_POSITION
-$ roslaunch pcl_object_detection demo.launch detection_mode:=4
-# line_detection
-$ roslaunch pcl_object_detection demo_line.launch
-```
-<div align="center">
-    <img src="doc/img/demo_rqt_reconfigure.png" width="1080">
-</div>
+※ All parameters are defined in the [config](./config/) directory and can be tuned independently per node.
 
 <p align="right">(<a href="#readme-top">Back to Top</a>)</p>
 
-
-<!-- Milestones -->
-## Milestones
-
-- [x] Comprehensive documentation
-- [x] Open Source Software (OSS) release
-  - [x] Migration from tf to tf2
-  - [x] Update from custom message types to public messages
-
-To check current bugs or request new features, please visit the [Issue page][issues-url].
-
-<p align="right">(<a href="#readme-top">Back to Top</a>)</p>
-
-
-<!-- Change Log -->
-## Change Log
-
-Please refer to the [CHANGELOG.rst](CHANGELOG.rst) for the complete change log.
 
 <!-- References -->
 ## References
