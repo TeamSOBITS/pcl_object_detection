@@ -1,14 +1,14 @@
-pcl_line_detection:
+line_detection:
   ros__parameters:
-    scan_topic_name : /scan
-    base_frame_name : base_footprint
+    input_topic: "cloud_filtered"
+    base_frame: "D435i/camera/_depth_frame"
 
-    passthrough_y_min : -1.0
-    passthrough_y_max : 1.0
+    # Passthrough Filter
+    passthrough_axis: "y"
+    passthrough_min: -1.5
+    passthrough_max: 1.5
+    distance_threshold: 0.02
+    probability: 0.95
 
-    threshold_distance : 0.01
-    probability : 0.95
-
-    need_marker : true
-    need_cloud_line : true
-    need_line_info : true
+    # RANSAC Parameters
+    ransac_max_iterations: 100

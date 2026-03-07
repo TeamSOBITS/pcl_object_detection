@@ -1,9 +1,32 @@
-pcl_object_detection/pcl_object_detection:
+floor_detection:
   ros__parameters:
-    floor: 
-      passthrough_x_min : 2.0
-      passthrough_x_max : 3.0
-      passthrough_y_min : -2.0
-      passthrough_y_max : 2.0
-      passthrough_z_min : -0.3
-      passthrough_z_max : 0.3
+    input_topic: "cloud_filtered"
+    base_frame: "D435i/camera/_depth_frame"
+    
+    # Passthrough Filter
+    floor_height_min: -0.1
+    floor_height_max: 0.4
+    plane_dist_threshold: 0.03
+
+    # Clustering
+    cluster_tolerance: 0.05
+    min_cluster_size: 10
+    max_cluster_size: 10000
+
+    # RANSAC Parameters
+    ransac_max_iterations: 100
+    
+    # Vertical Structure Filter
+    use_vertical_filter: true
+    vertical_slice_thickness: 0.02
+    vertical_xy_cell_size: 0.03
+    vertical_required_continuity: 0.15
+    vertical_min_pts_per_cell: 3
+    
+    # Object Size Filters
+    object_size_x_min: 0.05
+    object_size_x_max: 0.80
+    object_size_y_min: 0.05
+    object_size_y_max: 0.80
+    object_size_z_min: 0.05
+    object_size_z_max: 0.80

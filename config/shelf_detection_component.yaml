@@ -1,9 +1,31 @@
-pcl_object_detection/pcl_object_detection:
+shelf_detection:
   ros__parameters:
-    shelf: 
-      passthrough_x_min : 0.0
-      passthrough_x_max : 1.5
-      passthrough_y_min : -0.5
-      passthrough_y_max : 0.5
-      passthrough_z_min : 0.5
-      passthrough_z_max : 1.0
+    input_topic: "cloud_filtered"
+    base_frame: "D435i/camera/_depth_frame"
+
+    # Passthrough Filter
+    shelf_x_min: 0.5
+    shelf_x_max: 1.5
+    shelf_y_min: -0.4
+    shelf_y_max: 0.4
+    shelf_z_min: 0.5
+    shelf_z_max: 1.5
+    plane_dist_threshold: 0.02
+
+    # Vertical Back Wall Filter
+    remove_back_wall: true
+
+    # Clustering
+    cluster_tolerance: 0.02
+    min_cluster_size: 50
+    max_cluster_size: 2000
+
+    # Object Size Filters
+    object_size_x_min: 0.05
+    object_size_x_max: 0.80
+    object_size_y_min: 0.05
+    object_size_y_max: 0.80
+    object_size_z_min: 0.05
+    object_size_z_max: 0.80
+
+    
