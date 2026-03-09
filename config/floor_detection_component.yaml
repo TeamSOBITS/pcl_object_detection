@@ -1,16 +1,16 @@
-floor_detection:
+/**/floor_detection:
   ros__parameters:
     input_topic: "cloud_filtered"
-    base_frame: "D435i/camera/_depth_frame"
+    base_frame: "base_footprint"
     
     # Passthrough Filter
-    floor_height_min: -0.1
-    floor_height_max: 0.4
-    plane_dist_threshold: 0.03
+    floor_height_min: -2.0
+    floor_height_max: 0.5
+    plane_dist_threshold: 0.05
 
     # Clustering
     cluster_tolerance: 0.05
-    min_cluster_size: 10
+    min_cluster_size: 100
     max_cluster_size: 10000
 
     # RANSAC Parameters

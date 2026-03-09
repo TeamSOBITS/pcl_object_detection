@@ -1,15 +1,15 @@
-table_detection:
+/**/table_detection:
   ros__parameters:
     input_topic: "cloud_filtered"
-    base_frame: "D435i/camera/_depth_frame"
+    base_frame: "base_footprint"
 
     # Passthrough Filter
-    table_height_min: 0.0
+    table_height_min: -0.5
     table_height_max: 0.5
-    plane_distance_threshold: 0.02
+    plane_distance_threshold: 0.05
     
     # Clustering
-    cluster_tolerance: 0.03
+    cluster_tolerance: 0.01
     min_cluster_size: 100
     max_cluster_size: 5000
 

@@ -1,13 +1,13 @@
-line_detection:
+/**/line_detection:
   ros__parameters:
-    input_topic: "cloud_filtered"
-    base_frame: "D435i/camera/_depth_frame"
+    input_topic: "scan"
+    base_frame: "base_footprint"
 
     # Passthrough Filter
     passthrough_axis: "y"
-    passthrough_min: -1.5
-    passthrough_max: 1.5
-    distance_threshold: 0.02
+    passthrough_min: -1.0
+    passthrough_max: 1.0
+    distance_threshold: 0.01
     probability: 0.95
 
     # RANSAC Parameters
