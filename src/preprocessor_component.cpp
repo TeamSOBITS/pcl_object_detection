@@ -16,8 +16,8 @@ PreProcessorComponent::PreProcessorComponent(const rclcpp::NodeOptions & options
   x_max_ = this->declare_parameter<double>("x_max", 10.0);
   y_min_ = this->declare_parameter<double>("y_min", -10.0);
   y_max_ = this->declare_parameter<double>("y_max", 10.0);
-  z_min_ = this->declare_parameter<double>("z_min", -2.0);
-  z_max_ = this->declare_parameter<double>("z_max", 5.0);
+  z_min_ = this->declare_parameter<double>("z_min", -10.0);
+  z_max_ = this->declare_parameter<double>("z_max", 10.0);
 
   RCLCPP_INFO(this->get_logger(), "Parameters Declared");
   RCLCPP_INFO(this->get_logger(), "Base Frame: %s", base_frame_.c_str());
@@ -57,6 +57,9 @@ void PreProcessorComponent::cloudCallback(sensor_msgs::msg::PointCloud2::UniqueP
     RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "TF Wait: %s", ex.what());
     return;
   }
+
+  std::vector<int> mapping;
+  pcl::removeNaNFromPointCloud(*cloud_transformed, *cloud_transformed, mapping);
 
   // Safety Clipping (Prevents VoxelGrid overflow)
   auto cloud_clipped = std::make_shared<PointCloud>();
