@@ -16,6 +16,7 @@ def generate_launch_description():
     shelf_default_config = os.path.join(pkg_share, 'config', 'shelf_detection_component.yaml')
     placeable_default_config = os.path.join(pkg_share, 'config', 'placeable_detection_component.yaml')
     line_default_config = os.path.join(pkg_share, 'config', 'line_detection_component.yaml')
+    basket_default_config = os.path.join(pkg_share, 'config', 'basket_detection_component.yaml')
 
     preprocessor_config = LaunchConfiguration('preprocessor_config')
     table_config = LaunchConfiguration('table_config')
@@ -23,6 +24,8 @@ def generate_launch_description():
     shelf_config = LaunchConfiguration('shelf_config')
     placeable_config = LaunchConfiguration('placeable_config')
     line_config = LaunchConfiguration('line_config')
+    basket_config = LaunchConfiguration('basket_config')
+    use_sim_time = LaunchConfiguration('use_sim_time')
 
     preprocessor_config_arg = DeclareLaunchArgument(
         'preprocessor_config',
@@ -54,6 +57,16 @@ def generate_launch_description():
         default_value=line_default_config,
         description='Full path to the line detection component parameters file to use'
     )
+    basket_config_arg = DeclareLaunchArgument(
+        'basket_config',
+        default_value=basket_default_config,
+        description='Full path to the basket detection component parameters file to use'
+    )
+    use_sim_time_arg = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='true',
+        description='Use simulation (Gazebo) clock if true'
+    )
 
     namespace = LaunchConfiguration("namespace")
     namespace_cmd = DeclareLaunchArgument(
@@ -74,7 +87,7 @@ def generate_launch_description():
                 plugin='pcl_object_detection::PreProcessorComponent',
                 name='preprocessor',
                 namespace=namespace,
-                parameters=[preprocessor_config],
+                parameters=[preprocessor_config, {'use_sim_time': use_sim_time}],
                 extra_arguments=[{'use_intra_process_comms': True}]
             ),
             # Table Detection Worker
@@ -83,7 +96,7 @@ def generate_launch_description():
                 plugin='pcl_object_detection::TableDetectionComponent',
                 name='table_detection',
                 namespace=namespace,
-                parameters=[table_config],
+                parameters=[table_config, {'use_sim_time': use_sim_time}],
                 extra_arguments=[{'use_intra_process_comms': True}]
             ),
             # Floor Detection Worker
@@ -92,7 +105,7 @@ def generate_launch_description():
                 plugin='pcl_object_detection::FloorDetectionComponent',
                 name='floor_detection',
                 namespace=namespace,
-                parameters=[floor_config],
+                parameters=[floor_config, {'use_sim_time': use_sim_time}],
                 extra_arguments=[{'use_intra_process_comms': True}]
             ),
             # Shelf Detection Worker
@@ -101,7 +114,7 @@ def generate_launch_description():
                 plugin='pcl_object_detection::ShelfDetectionComponent',
                 name='shelf_detection',
                 namespace=namespace,
-                parameters=[shelf_config],
+                parameters=[shelf_config, {'use_sim_time': use_sim_time}],
                 extra_arguments=[{'use_intra_process_comms': True}]
             ),
             # Placeable Detection Worker
@@ -110,7 +123,7 @@ def generate_launch_description():
                 plugin='pcl_object_detection::PlaceableDetectionComponent',
                 name='placeable_detection',
                 namespace=namespace,
-                parameters=[placeable_config],
+                parameters=[placeable_config, {'use_sim_time': use_sim_time}],
                 extra_arguments=[{'use_intra_process_comms': True}]
             ),
             # Line Detection Worker
@@ -119,7 +132,16 @@ def generate_launch_description():
                 plugin='pcl_object_detection::LineDetectionComponent',
                 name='line_detection',
                 namespace=namespace,
-                parameters=[line_config],
+                parameters=[line_config, {'use_sim_time': use_sim_time}],
+                extra_arguments=[{'use_intra_process_comms': True}]
+            ),
+            # Basket Detection Worker
+            ComposableNode(
+                package='pcl_object_detection',
+                plugin='pcl_object_detection::BasketDetectionComponent',
+                name='basket_detection',
+                namespace=namespace,
+                parameters=[basket_config, {'use_sim_time': use_sim_time}],
                 extra_arguments=[{'use_intra_process_comms': True}]
             ),
         ],
@@ -133,6 +155,8 @@ def generate_launch_description():
         shelf_config_arg,
         placeable_config_arg,
         line_config_arg,
+        basket_config_arg,
+        use_sim_time_arg,
         namespace_cmd,
         container,
     ])
