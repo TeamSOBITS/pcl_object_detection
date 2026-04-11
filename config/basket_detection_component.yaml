@@ -1,0 +1,44 @@
+/**/basket_detection:
+  ros__parameters:
+    # Topic for the pre-processed point cloud (transformed to base_footprint)
+    input_topic: "cloud_filtered"
+    
+    # Target frame for TF broadcasting (and processing)
+    base_frame: "base_footprint"
+    
+    # Detection zone (distance from floor in meters)
+    # These limit the search to objects on the ground/low tables
+    detection_height_min: 0.05
+    detection_height_max: 0.60
+    
+    # Clustering Parameters (Euclidean Clustering)
+    # cluster_tolerance: Max distance between points to be considered the same cluster.
+    # Increase if the basket mesh is sparse or has holes.
+    cluster_tolerance: 0.10
+    
+    # min_cluster_size: Minimum number of points for a valid object.
+    # Decrease if the basket is far away and point density is low.
+    min_cluster_size: 100
+    max_cluster_size: 10000
+    
+    # Basket Dimension Constraints (METERS)
+    # The logic ensures Width is the longest horizontal dimension.
+    # Standard IKEA TORKIS is approx 0.55 x 0.38 x 0.28
+    basket_width_min: 0.25
+    basket_width_max: 0.80
+    basket_depth_min: 0.15
+    basket_depth_max: 0.60
+    basket_height_min: 0.10
+    basket_height_max: 0.70
+    
+    # Handle detection parameters
+    # handle_search_radius: How far from the left/right edges to look for handle points.
+    # Increase if the handles are more towards the center of the basket.
+    handle_search_radius: 0.08
+    
+    # Cloth detection parameters
+    # cloth_detection_enabled: Whether to look for cloth inside the basket.
+    cloth_detection_enabled: true
+    # cloth_inner_margin: How far from the walls (in meters) to look for cloth.
+    # This prevents the algorithm from selecting the basket walls as cloth.
+    cloth_inner_margin: 0.10
