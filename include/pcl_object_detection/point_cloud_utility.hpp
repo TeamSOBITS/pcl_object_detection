@@ -94,51 +94,56 @@ public:
     Eigen::Vector4f centroid;
     pcl::compute3DCentroid(*cloud, cluster, centroid);
 
-    // Compute the Covariance Matrix and Extract Eigenvectors (Principal Axes)
-    Eigen::Matrix3f covariance;
-    pcl::computeCovarianceMatrixNormalized(*cloud, cluster, centroid, covariance);
-    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> solver(covariance, Eigen::ComputeEigenvectors);
-    Eigen::Matrix3f vectors = solver.eigenvectors();
+    // Filter points to 2D for PCA in XY plane
+    Eigen::MatrixXf points_2d(2, cluster.indices.size());
+    float min_z = std::numeric_limits<float>::max(), max_z = -min_z;
 
-    // Manual Projection for Bounding Box Limits:
-    // Instead of creating a whole new transformed cloud (which is slow), we project 
-    // each point onto the local Eigen vector frame to find the max/min dimensions.
-    float min_x = std::numeric_limits<float>::max(), max_x = -min_x;
-    float min_y = min_x, max_y = max_x;
-    float min_z = min_x, max_z = max_x;
-
-    for (const auto& idx : cluster.indices) {
-      Eigen::Vector3f pt = cloud->points[idx].getVector3fMap();
-      
-      // Project the point into the local PCA coordinate system
-      Eigen::Vector3f local_pt = vectors.transpose() * (pt - centroid.head<3>());
-      
-      min_x = std::min(min_x, local_pt.x()); 
-      max_x = std::max(max_x, local_pt.x());
-      min_y = std::min(min_y, local_pt.y()); 
-      max_y = std::max(max_y, local_pt.y());
-      min_z = std::min(min_z, local_pt.z()); 
-      max_z = std::max(max_z, local_pt.z());
+    for (size_t i = 0; i < cluster.indices.size(); ++i) {
+      const auto& pt = cloud->points[cluster.indices[i]];
+      points_2d(0, i) = pt.x - centroid[0];
+      points_2d(1, i) = pt.y - centroid[1];
+      min_z = std::min(min_z, pt.z);
+      max_z = std::max(max_z, pt.z);
     }
 
-    // Extract Orientation (Yaw):
-    // Eigenvectors are sorted by eigenvalue, so column 0 is the minor axis, 
-    // and column 2 is the major axis. We extract the Yaw angle from the primary plane.
-    double yaw = std::atan2(vectors(1, 0), vectors(0, 0));
+    // Compute 2x2 Covariance Matrix
+    Eigen::Matrix2f covariance = (points_2d * points_2d.transpose()) / static_cast<float>(cluster.indices.size());
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix2f> solver(covariance);
+    Eigen::Matrix2f eigenvectors = solver.eigenvectors();
+
+    // The eigenvector with the largest eigenvalue is the major axis
+    // solver.eigenvectors() is sorted by eigenvalues ascending, so col(1) is major
+    Eigen::Vector2f major_axis = eigenvectors.col(1);
+    Eigen::Vector2f minor_axis = eigenvectors.col(0);
+
+    // Compute horizontal dimensions by projecting onto these axes
+    float min_major = std::numeric_limits<float>::max(), max_major = -min_major;
+    float min_minor = min_major, max_minor = max_major;
+
+    for (size_t i = 0; i < cluster.indices.size(); ++i) {
+      float proj_major = major_axis.dot(points_2d.col(i));
+      float proj_minor = minor_axis.dot(points_2d.col(i));
+      min_major = std::min(min_major, proj_major);
+      max_major = std::max(max_major, proj_major);
+      min_minor = std::min(min_minor, proj_minor);
+      max_minor = std::max(max_minor, proj_minor);
+    }
+
+    double yaw = std::atan2(major_axis.y(), major_axis.x());
 
     // Populate Output Box
     box.center.position.x = centroid[0];
     box.center.position.y = centroid[1];
-    box.center.position.z = centroid[2];
+    box.center.position.z = (max_z + min_z) / 2.0; // Vertical center
     
-    // Convert Yaw to Quaternion (Roll=0, Pitch=0)
     box.center.orientation.x = 0.0;
     box.center.orientation.y = 0.0;
     box.center.orientation.z = std::sin(yaw / 2.0);
     box.center.orientation.w = std::cos(yaw / 2.0);
     
-    box.size.x = max_x - min_x;
-    box.size.y = max_y - min_y;
+    // Here x is the Major axis, y is the Minor axis
+    box.size.x = max_major - min_major;
+    box.size.y = max_minor - min_minor;
     box.size.z = max_z - min_z;
 
     return box;

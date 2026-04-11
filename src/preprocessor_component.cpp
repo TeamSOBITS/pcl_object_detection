@@ -71,7 +71,7 @@ void PreProcessorComponent::cloudCallback(sensor_msgs::msg::PointCloud2::UniqueP
 
   // Apply Voxel Grid
   auto cloud_downsampled = std::make_shared<PointCloud>();
-  PointCloudUtility::applyVoxelGrid(cloud_transformed, cloud_downsampled, voxel_leaf_size_);
+  PointCloudUtility::applyVoxelGrid(cloud_clipped, cloud_downsampled, voxel_leaf_size_);
 
   auto output_msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
   pcl::toROSMsg(*cloud_downsampled, *output_msg);
