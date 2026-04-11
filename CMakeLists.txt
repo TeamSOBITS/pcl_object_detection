@@ -43,6 +43,7 @@ add_library(detection_components SHARED
   src/shelf_detection_component.cpp
   src/placeable_detection_component.cpp
   src/line_detection_component.cpp
+  src/basket_detection_component.cpp
 )
 
 # Link PCL separately (as it is not a standard ROS package)
@@ -78,6 +79,7 @@ rclcpp_components_register_nodes(detection_components
   "pcl_object_detection::ShelfDetectionComponent"
   "pcl_object_detection::PlaceableDetectionComponent"
   "pcl_object_detection::LineDetectionComponent"
+  "pcl_object_detection::BasketDetectionComponent"
 )
 
 # Install Rules
@@ -85,7 +87,7 @@ install(TARGETS
   detection_components
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 # Install header files
