@@ -1,6 +1,7 @@
 /**/line_detection:
   ros__parameters:
-    input_topic: "scan"
+    input_topic: "/scan"
+    odom_frame: "odom"
     base_frame: "base_footprint"
 
     # Passthrough Filter

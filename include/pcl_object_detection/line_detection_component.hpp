@@ -15,10 +15,15 @@
 #include <pcl/point_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/filters/extract_indices.h>
-
+#include <pcl_ros/transforms.hpp>
 // Project Utils
 #include "pcl_object_detection/point_cloud_utility.hpp"
 
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/static_transform_broadcaster.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 namespace pcl_object_detection {
 
 /**
@@ -61,10 +66,17 @@ private:
   pcl::SACSegmentation<PointT> seg_;
   pcl::ExtractIndices<PointT> extract_;
 
+  std::shared_ptr<tf2_ros::Buffer>               tfBuffer_;
+  std::shared_ptr<tf2_ros::TransformListener>    tfListener_;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> dynamic_broadcaster_;
+  std::string base_frame_name;
+  
+  void broadcast_line_tf(const Eigen::Vector3f& pos, double yaw, const std::string& frame_id);
   // Parameters
   struct {
     std::string base_frame;
-  
+    std::string odom_frame;
+
     // RANSAC Parameters
     double passthrough_min;
     double passthrough_max;
