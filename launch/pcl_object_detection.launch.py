@@ -17,6 +17,8 @@ def generate_launch_description():
     placeable_default_config = os.path.join(pkg_share, 'config', 'placeable_detection_component.yaml')
     line_default_config = os.path.join(pkg_share, 'config', 'line_detection_component.yaml')
     basket_default_config = os.path.join(pkg_share, 'config', 'basket_detection_component.yaml')
+    washing_machine_default_config = os.path.join(pkg_share, 'config', 'washing_machine_detection_component.yaml')
+    laundry_default_config = os.path.join(pkg_share, 'config', 'laundry_detection_component.yaml')
 
     preprocessor_config = LaunchConfiguration('preprocessor_config')
     table_config = LaunchConfiguration('table_config')
@@ -25,6 +27,8 @@ def generate_launch_description():
     placeable_config = LaunchConfiguration('placeable_config')
     line_config = LaunchConfiguration('line_config')
     basket_config = LaunchConfiguration('basket_config')
+    washing_machine_config = LaunchConfiguration('washing_machine_config')
+    laundry_config = LaunchConfiguration('laundry_config')
     use_sim_time = LaunchConfiguration('use_sim_time')
 
     preprocessor_config_arg = DeclareLaunchArgument(
@@ -61,6 +65,16 @@ def generate_launch_description():
         'basket_config',
         default_value=basket_default_config,
         description='Full path to the basket detection component parameters file to use'
+    )
+    washing_machine_config_arg = DeclareLaunchArgument(
+        'washing_machine_config',
+        default_value=washing_machine_default_config,
+        description='Full path to the washing machine detection component parameters file to use'
+    )
+    laundry_config_arg = DeclareLaunchArgument(
+        'laundry_config',
+        default_value=laundry_default_config,
+        description='Full path to the laundry detection component parameters file to use'
     )
     use_sim_time_arg = DeclareLaunchArgument(
         'use_sim_time',
@@ -144,6 +158,24 @@ def generate_launch_description():
                 parameters=[basket_config, {'use_sim_time': use_sim_time}],
                 extra_arguments=[{'use_intra_process_comms': True}]
             ),
+            # Washing Machine Detection Worker
+            ComposableNode(
+                package='pcl_object_detection',
+                plugin='pcl_object_detection::WashingMachineDetectionComponent',
+                name='washing_machine_detection',
+                namespace=namespace,
+                parameters=[washing_machine_config, {'use_sim_time': use_sim_time}],
+                extra_arguments=[{'use_intra_process_comms': True}]
+            ),
+            # Laundry Detection Worker
+            ComposableNode(
+                package='pcl_object_detection',
+                plugin='pcl_object_detection::LaundryDetectionComponent',
+                name='laundry_detection',
+                namespace=namespace,
+                parameters=[laundry_config, {'use_sim_time': use_sim_time}],
+                extra_arguments=[{'use_intra_process_comms': True}]
+            ),
         ],
         output='screen',
     )
@@ -156,6 +188,8 @@ def generate_launch_description():
         placeable_config_arg,
         line_config_arg,
         basket_config_arg,
+        washing_machine_config_arg,
+        laundry_config_arg,
         use_sim_time_arg,
         namespace_cmd,
         container,
