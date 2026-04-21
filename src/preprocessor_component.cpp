@@ -39,7 +39,7 @@ PreProcessorComponent::PreProcessorComponent(const rclcpp::NodeOptions & options
     
   std::string input_topic = this->declare_parameter<std::string>("input_topic", "/camera/depth/color/points");
   sub_raw_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    input_topic, qos_reliable,
+    input_topic, 10,
     std::bind(&PreProcessorComponent::cloudCallback, this, std::placeholders::_1));
     
   RCLCPP_INFO(this->get_logger(), "PreProcessor Component Initialized");
