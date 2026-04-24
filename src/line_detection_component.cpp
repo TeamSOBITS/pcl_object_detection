@@ -9,9 +9,11 @@ LineDetectionComponent::LineDetectionComponent(const rclcpp::NodeOptions & optio
   this->declare_parameter<std::string>("input_topic", "/scan");
   this->declare_parameter<std::string>("odom_frame", "odom");
   this->declare_parameter<std::string>("base_frame", "base_footprint");
-  this->declare_parameter<std::string>("passthrough_axis", "y");
-  this->declare_parameter<double>("passthrough_min", -1.0);
-  this->declare_parameter<double>("passthrough_max", 1.0);
+  // this->declare_parameter<std::string>("passthrough_axis", "y");
+  this->declare_parameter<double>("passthrough_x_min", -1.0);
+  this->declare_parameter<double>("passthrough_x_max", 1.0);
+  this->declare_parameter<double>("passthrough_y_min", -1.0);
+  this->declare_parameter<double>("passthrough_y_max", 1.0);
   this->declare_parameter<double>("distance_threshold", 0.02);
   this->declare_parameter<double>("probability", 0.95);
   this->declare_parameter<int>("ransac_max_iterations", 1000);
@@ -26,9 +28,11 @@ LineDetectionComponent::CallbackReturn LineDetectionComponent::on_configure(cons
   // Read Parameters into Struct
   params_.odom_frame = this->get_parameter("odom_frame").as_string();
   params_.base_frame = this->get_parameter("base_frame").as_string();
-  params_.passthrough_axis = this->get_parameter("passthrough_axis").as_string();
-  params_.passthrough_min = this->get_parameter("passthrough_min").as_double();
-  params_.passthrough_max = this->get_parameter("passthrough_max").as_double();
+  // params_.passthrough_axis = this->get_parameter("passthrough_axis").as_string();
+  params_.passthrough_x_min = this->get_parameter("passthrough_x_min").as_double();
+  params_.passthrough_x_max = this->get_parameter("passthrough_x_max").as_double();
+  params_.passthrough_y_min = this->get_parameter("passthrough_y_min").as_double();
+  params_.passthrough_y_max = this->get_parameter("passthrough_y_max").as_double();
   params_.distance_threshold = this->get_parameter("distance_threshold").as_double();
   params_.probability = this->get_parameter("probability").as_double();
   params_.ransac_max_iterations = this->get_parameter("ransac_max_iterations").as_int();
@@ -37,9 +41,11 @@ LineDetectionComponent::CallbackReturn LineDetectionComponent::on_configure(cons
   RCLCPP_INFO(this->get_logger(), "Parameters Loaded:");
   RCLCPP_INFO(this->get_logger(), "Base Frame: %s", params_.base_frame.c_str());
   RCLCPP_INFO(this->get_logger(), "Passthrough:");
-  RCLCPP_INFO(this->get_logger(), "  Axis: %s", params_.passthrough_axis.c_str());
-  RCLCPP_INFO(this->get_logger(), "  Min: %f", params_.passthrough_min);
-  RCLCPP_INFO(this->get_logger(), "  Max: %f", params_.passthrough_max);
+  // RCLCPP_INFO(this->get_logger(), "  Axis: %s", params_.passthrough_axis.c_str());
+  RCLCPP_INFO(this->get_logger(), "  x_Min: %f", params_.passthrough_x_min);
+  RCLCPP_INFO(this->get_logger(), "  x_Max: %f", params_.passthrough_x_max);
+  RCLCPP_INFO(this->get_logger(), "  y_Min: %f", params_.passthrough_y_min);
+  RCLCPP_INFO(this->get_logger(), "  y_Max: %f", params_.passthrough_y_max);
   RCLCPP_INFO(this->get_logger(), "Distance Threshold: %f", params_.distance_threshold);
   RCLCPP_INFO(this->get_logger(), "Probability: %f", params_.probability);
   RCLCPP_INFO(this->get_logger(), "Max RANSAC Iterations: %d", params_.ransac_max_iterations);
@@ -149,9 +155,12 @@ void LineDetectionComponent::scanCallback(const sensor_msgs::msg::LaserScan::Con
 
     // Filter area of interest
     PointCloudUtility::applyPassThrough(
-      cloud_in_odom, cloud_in_odom, params_.passthrough_axis, 
-      params_.passthrough_min, params_.passthrough_max);
+      cloud_in_odom, cloud_in_odom, "x", 
+      params_.passthrough_x_min, params_.passthrough_x_max);
 
+    PointCloudUtility::applyPassThrough(
+      cloud_in_odom, cloud_in_odom, "y", 
+      params_.passthrough_y_min, params_.passthrough_y_max);
     } catch (tf2::TransformException& ex) { return; }
   
   if (cloud_in_odom->empty()) return;

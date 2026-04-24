@@ -5,9 +5,11 @@
     base_frame: "base_footprint"
 
     # Passthrough Filter
-    passthrough_axis: "y"
-    passthrough_min: -1.0
-    passthrough_max: 1.0
+    # passthrough_axis: "y"
+    passthrough_x_min: 0.0
+    passthrough_x_max: 1.0
+    passthrough_y_min: -0.2
+    passthrough_y_max: 0.2
     distance_threshold: 0.01
     probability: 0.95
 

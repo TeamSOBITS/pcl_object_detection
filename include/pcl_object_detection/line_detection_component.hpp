@@ -78,9 +78,11 @@ private:
     std::string odom_frame;
 
     // RANSAC Parameters
-    double passthrough_min;
-    double passthrough_max;
-    std::string passthrough_axis;
+    double passthrough_x_min;
+    double passthrough_x_max;
+    double passthrough_y_min;
+    double passthrough_y_max;
+    // std::string passthrough_axis;
 
     // Line Model Parameters
     double distance_threshold;
