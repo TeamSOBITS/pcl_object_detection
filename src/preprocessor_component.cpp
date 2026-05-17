@@ -30,13 +30,16 @@ PreProcessorComponent::PreProcessorComponent(const rclcpp::NodeOptions & options
   tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
-  auto qos = rclcpp::SensorDataQoS();
+  auto qos_reliable = rclcpp::QoS(10);
+  auto qos_sensor = rclcpp::SensorDataQoS();
+  
   std::string output_topic = this->declare_parameter<std::string>("output_topic", "cloud_filtered");
   pub_filtered_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
-    output_topic, qos);
+    output_topic, qos_reliable);
+    
   std::string input_topic = this->declare_parameter<std::string>("input_topic", "/camera/depth/color/points");
   sub_raw_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    input_topic, qos,
+    input_topic, 10,
     std::bind(&PreProcessorComponent::cloudCallback, this, std::placeholders::_1));
     
   RCLCPP_INFO(this->get_logger(), "PreProcessor Component Initialized");
@@ -50,11 +53,17 @@ void PreProcessorComponent::cloudCallback(sensor_msgs::msg::PointCloud2::UniqueP
   // Transform to Base Frame
   auto cloud_transformed = std::make_shared<PointCloud>();
   try {
-    auto transform = tf_buffer_->lookupTransform(base_frame_, msg->header.frame_id, tf2::TimePointZero);
+    // Wait for the transform to be available (100ms)
+    if (!tf_buffer_->canTransform(base_frame_, msg->header.frame_id, msg->header.stamp, rclcpp::Duration::from_seconds(0.1))) {
+       RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000, 
+         "Transform from %s to %s not available at time %f", 
+         msg->header.frame_id.c_str(), base_frame_.c_str(), rclcpp::Time(msg->header.stamp).seconds());
+       return;
+    }
     pcl_ros::transformPointCloud(base_frame_, *cloud_raw, *cloud_transformed, *tf_buffer_);
     cloud_transformed->header.frame_id = base_frame_;
   } catch (const tf2::TransformException & ex) {
-    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "TF Wait: %s", ex.what());
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "TF Logic Error: %s", ex.what());
     return;
   }
 
@@ -71,7 +80,7 @@ void PreProcessorComponent::cloudCallback(sensor_msgs::msg::PointCloud2::UniqueP
 
   // Apply Voxel Grid
   auto cloud_downsampled = std::make_shared<PointCloud>();
-  PointCloudUtility::applyVoxelGrid(cloud_transformed, cloud_downsampled, voxel_leaf_size_);
+  PointCloudUtility::applyVoxelGrid(cloud_clipped, cloud_downsampled, voxel_leaf_size_);
 
   auto output_msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
   pcl::toROSMsg(*cloud_downsampled, *output_msg);
