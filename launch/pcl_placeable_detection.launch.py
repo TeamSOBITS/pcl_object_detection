@@ -11,20 +11,20 @@ def generate_launch_description():
     pkg_share = get_package_share_directory('pcl_object_detection')
 
     preprocessor_default_config = os.path.join(pkg_share, 'config', 'preprocessor_component.yaml')
-    line_default_config = os.path.join(pkg_share, 'config', 'line_detection_component.yaml')
+    placeable_default_config = os.path.join(pkg_share, 'config', 'placeable_detection_component.yaml')
 
     preprocessor_config = LaunchConfiguration('preprocessor_config')
-    line_config = LaunchConfiguration('line_config')
+    placeable_config = LaunchConfiguration('placeable_config')
 
     preprocessor_config_arg = DeclareLaunchArgument(
         'preprocessor_config',
         default_value=preprocessor_default_config,
         description='Full path to the preprocessor component parameters file to use'
     )
-    line_config_arg = DeclareLaunchArgument(
-        'line_config',
-        default_value=line_default_config,
-        description='Full path to the line detection component parameters file to use'
+    placeable_config_arg = DeclareLaunchArgument(
+        'placeable_config',
+        default_value=placeable_default_config,
+        description='Full path to the placeable detection component parameters file to use'
     )
 
     namespace = LaunchConfiguration("namespace")
@@ -49,13 +49,13 @@ def generate_launch_description():
                 parameters=[preprocessor_config],
                 extra_arguments=[{'use_intra_process_comms': True}]
             ),
-            # Line Detection Worker
+            # Placeable Detection Worker
             ComposableNode(
                 package='pcl_object_detection',
-                plugin='pcl_object_detection::LineDetectionComponent',
-                name='line_detection',
+                plugin='pcl_object_detection::PlaceableDetectionComponent',
+                name='placeable_detection',
                 namespace=namespace,
-                parameters=[line_config],
+                parameters=[placeable_config],
                 extra_arguments=[{'use_intra_process_comms': True}]
             ),
         ],
@@ -64,7 +64,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         preprocessor_config_arg,
-        line_config_arg,
+        placeable_config_arg,
         namespace_cmd,
         container,
     ])

@@ -1,0 +1,21 @@
+/**/placeable_detection:
+  ros__parameters:
+    input_topic: "cloud_filtered"
+    base_frame: "base_footprint"
+
+    # Passthrough Filter
+    place_x_min: 0.25
+    place_x_max: 1.0
+    place_y_min: -0.5
+    place_y_max: 0.5
+    place_z_min: -0.5
+    place_z_max: 0.5
+    
+    # Safety Logic
+    search_interval: 0.02      # Grid density
+    obstacle_tolerance: 0.1   # Radius needed for an object
+    edge_margin: 0.05          # Distance from table edge
+    plane_dist_threshold: 0.02 # Distance from plane to consider as "on the table"
+
+    # RANSAC Parameters
+    ransac_max_iterations: 100

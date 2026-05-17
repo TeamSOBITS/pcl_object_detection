@@ -1,0 +1,152 @@
+/**/laundry_detection:
+  ros__parameters:
+    # Input point cloud topic (provided by the preprocessor node).
+    input_topic: "/cloud_filtered"
+    base_frame: "base_footprint"
+
+    # ---------------------------------------------------------------------------
+    # PLANE DETECTION
+    # The algorithm fits a plane to the front face of the washing machine using
+    # RANSAC. Points within dist_threshold of the fitted plane are counted as
+    # inliers.
+    #
+    # Tuning:
+    #   - Increase dist_threshold if the machine surface is noisy or curved and
+    #     the plane fit keeps failing. Too large and the plane will absorb points
+    #     from nearby objects (e.g. the open door).
+    #   - Decrease dist_threshold for cleaner point clouds to get a tighter fit
+    #     and more accurate circle fitting in the next stage.
+    # ---------------------------------------------------------------------------
+    plane:
+      dist_threshold: 0.03      # (m) RANSAC inlier tolerance for plane fitting
+
+    # ---------------------------------------------------------------------------
+    # CIRCLE FITTING (drum opening)
+    # After finding the machine front plane, a 3D circle is fitted to its inlier
+    # points to locate the drum opening (center + radius + normal).
+    #
+    # Tuning:
+    #   - dist_threshold: same role as plane dist_threshold but for the circle.
+    #     Increase if the drum rim is noisy or partially occluded.
+    #   - radius_min / radius_max: must bracket the real drum radius. Measure the
+    #     physical drum opening diameter and set min/max ~2–3 cm either side.
+    #     If the circle fit fails, first check that the actual radius falls in
+    #     this range by reading the "Circle found with radius:" log line.
+    # ---------------------------------------------------------------------------
+    circle:
+      dist_threshold: 0.04      # (m) RANSAC inlier tolerance for circle fitting
+      radius_min: 0.15          # (m) smallest acceptable drum opening radius
+      radius_max: 0.28          # (m) largest acceptable drum opening radius
+
+    # ---------------------------------------------------------------------------
+    # DRUM GEOMETRY
+    # Defines the cylindrical volume that is carved out of the point cloud to
+    # isolate points inside the drum. The cylinder axis runs from the circle
+    # center along the drum normal (into the machine).
+    #
+    #   drum_depth     : total length of the drum interior along its axis.
+    #                    Measure from the front gasket to the back wall.
+    #                    If too short, laundry near the back is missed.
+    #                    If too long, back-wall points are included.
+    #
+    #   shell_threshold: radial clearance stripped from the cylinder wall.
+    #                    Points within this distance of the drum wall are
+    #                    discarded (they are the drum shell, not laundry).
+    #                    Increase if drum-wall reflections pollute the cluster.
+    #                    Decrease if laundry pressed against the wall disappears.
+    # ---------------------------------------------------------------------------
+    drum_depth: 0.45            # (m) axial length of the drum interior
+    shell_threshold: 0.10       # (m) radial margin from drum wall to ignore
+
+    # ---------------------------------------------------------------------------
+    # EUCLIDEAN CLUSTERING
+    # Points inside the drum volume are clustered. The largest cluster is taken
+    # as the laundry pile.
+    #
+    #   cluster_tolerance: maximum distance between two points to be considered
+    #                      part of the same cluster. Increase if scattered laundry
+    #                      items (e.g. separated by an air gap) are being split
+    #                      into multiple clusters and the largest one is missed.
+    #                      Decrease if the drum shell or back wall leaks into the
+    #                      laundry cluster.
+    #
+    #   cluster_min_size : clusters with fewer points are discarded as noise.
+    #                      Lower if the drum is nearly empty and the laundry
+    #                      point count is small. Raise to filter spurious specks.
+    # ---------------------------------------------------------------------------
+    cluster_tolerance: 0.03     # (m) max point-to-point distance within a cluster
+    cluster_min_size: 50        # (points) minimum cluster size to consider
+
+    # ---------------------------------------------------------------------------
+    # MACHINE DEPTH GATE
+    # Up to 3 candidate planes are tested in order of size. Each is accepted only
+    # if its centroid is at least min_machine_depth metres from the robot AND its
+    # normal is roughly aligned with the robot X axis (alignment > 0.8).
+    # Planes closer than this are treated as the open door or other foreground
+    # objects and are removed before searching for the next candidate.
+    #
+    # Tuning:
+    #   - Set to slightly less than the actual robot-to-machine distance so the
+    #     machine front plane always passes, while a partially open door (which
+    #     swings closer) is still rejected.
+    #   - Check the "Found plane N at depth X:" log line to see what depth the
+    #     machine front is being detected at, then set this ~10–15 cm below that.
+    # ---------------------------------------------------------------------------
+    min_machine_depth: 1.15     # (m) minimum X depth to accept a plane as the machine face
+
+    # ---------------------------------------------------------------------------
+    # DRUM VOLUME MARGINS (axial)
+    # These crop the front and back of the cylindrical search volume along the
+    # drum axis to avoid including the machine face surface and the back wall.
+    #
+    #   drum_margin_front: skip this many metres behind the front face before
+    #                      starting to collect drum points. Should be large enough
+    #                      to clear the rubber gasket and door ring.
+    #                      Increase if rim/counter points still enter the volume.
+    #
+    #   drum_margin_back : stop this many metres before the back wall.
+    #                      Increase if back-wall reflections pollute the cluster.
+    # ---------------------------------------------------------------------------
+    drum_margin_front: 0.18     # (m) axial margin from drum opening inward
+    drum_margin_back: 0.05      # (m) axial margin from drum back wall inward
+
+    # ---------------------------------------------------------------------------
+    # LAUNDRY CENTROID DEPTH GATE
+    # After clustering, the centroid of the largest cluster is checked against
+    # this threshold. If the centroid is shallower than min_laundry_depth along
+    # the drum axis (measured from the circle center), the detection is rejected
+    # and no TF is published for that frame.
+    #
+    # This is the last line of defence against false detections on the rim or
+    # door counter that slip through the drum volume margins.
+    #
+    # Tuning:
+    #   - Watch for "likely rim noise, skipping" warnings. If they fire on real
+    #     laundry detections, lower this value.
+    #   - If the TF still occasionally lands on the rim, raise this value
+    #     (e.g. 0.15) until rim detections are suppressed.
+    #   - Must be less than (drum_depth - drum_margin_back) or nothing will ever
+    #     be detected.
+    # ---------------------------------------------------------------------------
+    min_laundry_depth: 0.18     # (m) minimum centroid depth inside drum to publish TF
+
+    # ---------------------------------------------------------------------------
+    # CENTROID SMOOTHING (Exponential Moving Average)
+    # The published TF position is a weighted blend of the current raw centroid
+    # and the previous smoothed position:
+    #
+    #   smoothed = alpha * raw + (1 - alpha) * previous_smoothed
+    #
+    #   alpha = 1.0 → no smoothing, raw centroid published every frame
+    #   alpha = 0.5 → equal weight to new and history (moderate smoothing)
+    #   alpha = 0.2 → slow to respond, very stable (heavy smoothing)
+    #
+    # Tuning:
+    #   - If the TF still jumps to the rim occasionally, lower alpha so a single
+    #     bad frame has less influence on the published position.
+    #   - If the TF lags behind when laundry actually moves (e.g. robot is
+    #     actively pulling clothes), raise alpha for a faster response.
+    #   - The smoother resets on deactivate, so the first frame after activation
+    #     always uses the raw centroid as the starting point.
+    # ---------------------------------------------------------------------------
+    smoothing_alpha: 0.4        # EMA weight for new centroid (0.0–1.0)

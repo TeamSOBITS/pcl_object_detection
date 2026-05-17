@@ -10,38 +10,16 @@
 
 # PCL Object Detection
 
-<!-- 目次 -->
-<details>
-  <summary>目次</summary>
-  <ol>
-    <li>
-      <a href="#概要">概要</a>
-    </li>
-    <li>
-      <a href="#セットアップ">セットアップ</a>
-      <ul>
-        <li><a href="#環境条件">環境条件</a></li>
-        <li><a href="#インストール方法">インストール方法</a></li>
-      </ul>
-    </li>
-    <li><a href="#実行・操作方法">実行・操作方法</a></li>
-    <li><a href="#マイルストーン">マイルストーン</a></li>
-    <li><a href="#変更履歴">変更履歴</a></li>
-    <li><a href="#参考文献">参考文献</a></li>
-  </ol>
-</details>
-
-
-<!-- リポジトリの概要 -->
 ## 概要
 
-- Point Cloud Libraryを用いたルールベース物体検出パッケージ．
-- Lidar情報から直線を検出．
+- ROS 2 Jazzy向けの高性能かつコンポーネント指向な物体検出パッケージです。
+- **Point Cloud Library (PCL)** を利用したルールベースの物体検出を行います。
+- アーキテクチャ: **ROS 2 Lifecycle Nodes** を採用し、**ゼロコピー・プロセス間通信**を実現しています。
+- モード: 床、机、棚、配置可能位置の検出、および2D-LiDARによる直線検出に対応しています。
 
 <p align="right">(<a href="#readme-top">上に戻る</a>)</p>
 
 
-<!-- セットアップ -->
 ## セットアップ
 
 ここで，本リポジトリのセットアップ方法について説明します．
@@ -51,102 +29,84 @@
 
 ### 環境条件
 
-正常動作のため，以下の必要な環境を整えてください．
+正常に動作させるため、以下の環境を整えてください。
 
 | System | Version |
-| --- | --- |
-| Ubuntu | 22.04 |
-| ROS    | Humble |
+| ------------- | ------------- |
+| Ubuntu | 24.04 (Noble Numbat) |
+| ROS | Jazzy Jalisco |
 
 > [!NOTE]
-> `Ubuntu`や`ROS`のインストール方法に関しては，[SOBITS Manual](https://github.com/TeamSOBITS/sobits_manual#%E9%96%8B%E7%99%BA%E7%92%B0%E5%A2%83%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6)に参照してください．
+> `Ubuntu` や `ROS` のインストール方法については、[SOBITS Manual](https://github.com/TeamSOBITS/sobits_manual#%E9%96%8B%E7%99%BA%E7%92%B0%E5%A2%83%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6) を参照してください。
 
 <p align="right">(<a href="#readme-top">上に戻る</a>)</p>
 
 
 ### インストール方法
+1. ROSワークスペースの `src` フォルダに移動します。
+   ```bash
+   $ cd ~/colcon_ws/src/
+   ```
 
-1. ROSの`src`フォルダに移動します．
-  ```bash
-  $ cd colcon_ws/src/
-  ```
+2. 本リポジトリをクローンします。
+   ```bash
+   $ git clone -b jazzy-devel https://github.com/TeamSOBITS/pcl_object_detection.git
+   ```
 
-2. 本リポジトリをcloneします．
-  ```bash
-  $ git clone -b feature/humble-devel https://github.com/TeamSOBITS/pcl_object_detection.git
-  ```
+3. 依存パッケージをインストールします。
+   ```bash
+   $ bash install.sh
+   ```
 
-3. 依存パッケージをインストールします．
-  ```bash
-  $ bash install.sh
-  ```
-
-4. パッケージをコンパイルします．
-  ```bash
-  $ cd ~/colcon_ws
-  $ colcon build
-  ```
+4. パッケージをコンパイルします。
+   ```bash
+   $ cd ~/colcon_ws
+   $ colcon build --symlink-install
+   ```
 
 <p align="right">(<a href="#readme-top">上に戻る</a>)</p>
 
 
-<!-- 実行・操作方法 -->
 ## 実行・操作方法
 
-### [pcl_object_detection.launch.py](launch/pcl_object_detection.launch.py)
+本システムは、ゼロコピー・メモリ共有を実現するため、単一の `ComposableNodeContainer` として動作します。
 
-- 机、床、棚上の物体検出と配置位置の検出をします．
-- 検出位置はトピック通信とTFで出力されます．
-- 各検出モードはサービス通信によって変更可能．
-
-| モード | 機能 |
-| --- | --- |
-| 0 | OFF |
-| 1 | table mode - [パラメータ](param/object_table_param.yaml)  |
-| 2 | floor mode - [パラメータ](param/object_detection_floor_param.yaml)  |
-| 3 | shelf mode - [パラメータ](param/object_detection_shelf_param.yaml) |
-| 4 | placeable mode - [パラメータ](param/placeable_param.yaml) |
-
-
-※各モードに共通するパラメータは[common_param.yaml](param/object_common_param.yaml)にあります 
-
-<!--- 詳細は[こちら](doc/md/point_cloud_object_detection.md)． -->
-実行方法
+コンテナを起動するコマンド:
 ```bash
-$ ros2 launch pcl_object_detection pcl_object_detection.launch.py
+ros2 launch pcl_object_detection pcl_object_detection.launch.py
 ```
-
-各モードの切り替え方法（サービス通信）
-
-| サービス名 | 型 |
-| --- | --- |
-| /switch_mode | sobits_interfaces/ModeCtrl型 |
-
-### [pcl_line_detection.launch.py](launch/pcl_line_detection.launch.py)
-2D-LiDARセンサから得た点群から直線を検出します.
-
-実行方法
-```bash
-$ ros2 launch pcl_object_detection pcl_line_detection.launch.py
-```
-<p align="right">(<a href="#readme-top">上に戻る</a>)</p>
-
-
-<!-- マイルストーン -->
-## マイルストーン
-
-- [x] ドキュメントの充実
-
-
-現時点のバッグや新規機能の依頼を確認するために[Issueページ][issues-url] をご覧ください．
 
 <p align="right">(<a href="#readme-top">上に戻る</a>)</p>
 
 
-<!-- 変更履歴 -->
-## 変更履歴
+### ライフサイクル管理
 
-変更履歴は[CHANGELOG.rst](CHANGELOG.rst)を参照してください．
+本パッケージは **ROS 2 Lifecycle Nodes** を使用しています。デフォルトでは、すべての検出ノードは `Unconfigured` 状態です。処理を開始するには、その状態を管理する必要があります。
+
+#### ワークフローの例 (Table Detectionの場合)
+
+1. **Configure** (メモリの確保とパラメータの読み込み):
+   ```bash
+   ros2 lifecycle set /pcl_object_detection/table_detection configure
+   ```
+2. **Activate** (データ購読と処理の開始):
+   ```bash
+   ros2 lifecycle set /pcl_object_detection/table_detection activate
+   ```
+3. **Deactivate** (処理の即時停止、CPU負荷ゼロ):
+   ```bash
+   ros2 lifecycle set /pcl_object_detection/table_detection deactivate
+   ```
+
+| モード | ノード名 | 機能 |
+| --- | --- | --- |
+| 1 | `table_detection` | 水平面上の物体を検出 |
+| 2 | `floor_detection` | 床上の物体を検出 (脚のフィルタリング機能付き) |
+| 3 | `shelf_detection` | 収納棚の中の物体を検出 |
+| 4 | `placeable_detection`| 物体の配置可能な空きスペースを検出 |
+| 5 | `line_detection` | 2D-LiDARを用いた直線の検出 |
+
+※ すべてのパラメータは [config](./config/) ディレクトリ内で定義されており、ノードごとに個別に調整可能です。
 
 <p align="right">(<a href="#readme-top">上に戻る</a>)</p>
 

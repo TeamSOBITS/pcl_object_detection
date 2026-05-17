@@ -1,0 +1,14 @@
+/**/line_detection:
+  ros__parameters:
+    input_topic: "scan"
+    base_frame: "base_footprint"
+
+    # Passthrough Filter
+    passthrough_axis: "y"
+    passthrough_min: -1.0
+    passthrough_max: 1.0
+    distance_threshold: 0.01
+    probability: 0.95
+
+    # RANSAC Parameters
+    ransac_max_iterations: 100
