@@ -46,6 +46,7 @@ add_library(detection_components SHARED
   src/basket_detection_component.cpp
   src/washing_machine_detection_component.cpp
   src/laundry_detection_component.cpp
+  src/cloth_keypoint_detector_component.cpp
 )
 
 # Link PCL separately (as it is not a standard ROS package)
@@ -84,6 +85,7 @@ rclcpp_components_register_nodes(detection_components
   "pcl_object_detection::BasketDetectionComponent"
   "pcl_object_detection::WashingMachineDetectionComponent"
   "pcl_object_detection::LaundryDetectionComponent"
+  "pcl_object_detection::ClothKeypointDetectorComponent"
 )
 
 # Install Rules
