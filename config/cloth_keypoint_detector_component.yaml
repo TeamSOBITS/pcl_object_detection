@@ -31,3 +31,8 @@
     # Fraction of shirt width used as ±band around col_y when scanning for PB/PC X extent.
     # Scales with shirt size (min clamped to 3 cm). 0.25 = ±25% of shirt width.
     col_band_fraction: 0.25
+
+    # QoS reliability for the cloud subscriber: "reliable" or "best_effort".
+    # Use "reliable" if the publisher guarantees delivery (e.g. mask_to_3d in sim).
+    # Use "best_effort" for real sensor streams (depth camera point clouds).
+    cloud_reliability: "reliable"

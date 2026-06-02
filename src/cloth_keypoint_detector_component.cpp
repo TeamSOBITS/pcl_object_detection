@@ -5,6 +5,7 @@
 #include <pcl/common/common.h>
 
 #include <geometry_msgs/msg/transform_stamped.hpp>
+#include <lifecycle_msgs/msg/state.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 
 #include <array>
@@ -24,6 +25,7 @@ ClothKeypointDetectorComponent::ClothKeypointDetectorComponent(const rclcpp::Nod
   params_.sleeve_inset_fraction = this->declare_parameter<double>("sleeve_inset_fraction", 0.20);
   params_.edge_percentile       = this->declare_parameter<double>("edge_percentile", 5.0);
   params_.col_band_fraction     = this->declare_parameter<double>("col_band_fraction", 0.25);
+  params_.cloud_reliability     = this->declare_parameter<std::string>("cloud_reliability", "best_effort");
 }
 
 ClothKeypointDetectorComponent::CallbackReturn
@@ -34,25 +36,37 @@ ClothKeypointDetectorComponent::on_configure(const rclcpp_lifecycle::State &)
   param_cb_handle_ = this->add_on_set_parameters_callback(
     [this](const std::vector<rclcpp::Parameter> & params)
     -> rcl_interfaces::msg::SetParametersResult {
-      for (const auto & p : params) {
-        const auto & n = p.get_name();
-        if      (n == "z_grasp_offset") params_.z_grasp_offset = p.as_double();
-        else if (n == "min_points")     params_.min_points     = static_cast<int>(p.as_int());
-      }
       rcl_interfaces::msg::SetParametersResult r;
       r.successful = true;
+      const bool is_active =
+        (this->get_current_state().id() ==
+         lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE);
+      for (const auto & p : params) {
+        const auto & n = p.get_name();
+        // Live-tunable params (take effect immediately)
+        if      (n == "z_grasp_offset")     params_.z_grasp_offset     = p.as_double();
+        else if (n == "min_points")         params_.min_points         = static_cast<int>(p.as_int());
+        else if (n == "edge_percentile")    params_.edge_percentile    = p.as_double();
+        else if (n == "col_band_fraction")  params_.col_band_fraction  = p.as_double();
+        // Params that require deactivate → configure → activate to take effect
+        else if (n == "cloud_topic" || n == "cloud_reliability") {
+          if (is_active) {
+            r.successful = false;
+            r.reason = n + " cannot be changed while active — deactivate, cleanup, then configure";
+            return r;
+          }
+        }
+      }
       return r;
     });
 
-  auto qos = rclcpp::QoS(10);
-  sub_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    params_.cloud_topic, qos,
-    std::bind(&ClothKeypointDetectorComponent::cloudCallback, this, std::placeholders::_1));
+  // Re-read connection params — they may have been changed while inactive via ros2 param set.
+  params_.cloud_topic       = this->get_parameter("cloud_topic").as_string();
+  params_.cloud_reliability = this->get_parameter("cloud_reliability").as_string();
 
+  auto qos = rclcpp::QoS(10);
   pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
     "cloth_keypoint_detector/debug_cloud", qos);
-
-  last_process_time_ = this->get_clock()->now();
   RCLCPP_INFO(this->get_logger(), "ClothKeypointDetectorComponent configured:");
   RCLCPP_INFO(this->get_logger(), "  cloud_topic:           %s", params_.cloud_topic.c_str());
   RCLCPP_INFO(this->get_logger(), "  base_frame:            %s", params_.base_frame.c_str());
@@ -62,6 +76,8 @@ ClothKeypointDetectorComponent::on_configure(const rclcpp_lifecycle::State &)
   RCLCPP_INFO(this->get_logger(), "  fold_side:             %s", params_.fold_side.c_str());
   RCLCPP_INFO(this->get_logger(), "  sleeve_inset_fraction: %.3f", params_.sleeve_inset_fraction);
   RCLCPP_INFO(this->get_logger(), "  edge_percentile:       %.2f", params_.edge_percentile);
+  RCLCPP_INFO(this->get_logger(), "  col_band_fraction:     %.2f", params_.col_band_fraction);
+  RCLCPP_INFO(this->get_logger(), "  cloud_reliability:     %s", params_.cloud_reliability.c_str());
   return CallbackReturn::SUCCESS;
 }
 
@@ -69,6 +85,16 @@ ClothKeypointDetectorComponent::CallbackReturn
 ClothKeypointDetectorComponent::on_activate(const rclcpp_lifecycle::State &)
 {
   pub_debug_cloud_->on_activate();
+
+  auto reliability = (params_.cloud_reliability == "reliable")
+    ? RMW_QOS_POLICY_RELIABILITY_RELIABLE
+    : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
+  auto qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliability(reliability);
+  sub_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+    params_.cloud_topic, qos,
+    std::bind(&ClothKeypointDetectorComponent::cloudCallback, this, std::placeholders::_1));
+
+  last_process_time_ = this->get_clock()->now();
   RCLCPP_INFO(this->get_logger(), "Activated ClothKeypointDetectorComponent");
   return CallbackReturn::SUCCESS;
 }
@@ -76,6 +102,7 @@ ClothKeypointDetectorComponent::on_activate(const rclcpp_lifecycle::State &)
 ClothKeypointDetectorComponent::CallbackReturn
 ClothKeypointDetectorComponent::on_deactivate(const rclcpp_lifecycle::State &)
 {
+  sub_cloud_.reset();  // stop processing immediately
   pub_debug_cloud_->on_deactivate();
   return CallbackReturn::SUCCESS;
 }
@@ -83,7 +110,6 @@ ClothKeypointDetectorComponent::on_deactivate(const rclcpp_lifecycle::State &)
 ClothKeypointDetectorComponent::CallbackReturn
 ClothKeypointDetectorComponent::on_cleanup(const rclcpp_lifecycle::State &)
 {
-  sub_cloud_.reset();
   pub_debug_cloud_.reset();
   tf_broadcaster_.reset();
   return CallbackReturn::SUCCESS;

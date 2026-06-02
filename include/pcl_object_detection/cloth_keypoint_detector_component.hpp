@@ -66,6 +66,8 @@ private:
     // Fraction of shirt width used as the ±band around col_y when scanning for PB/PC X extent.
     // Scales with shirt size; 0.25 = ±25% of shirt width, min clamped to 3 cm.
     double col_band_fraction;
+    // QoS reliability for the cloud subscriber: "reliable" or "best_effort".
+    std::string cloud_reliability;
   } params_;
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_;
