@@ -38,6 +38,10 @@ WashingMachineDetectionComponent::WashingMachineDetectionComponent(const rclcpp:
   params_.rotation_offset = this->declare_parameter<double>("rotation_offset", 0.0);
   params_.base_frame = this->declare_parameter<std::string>("base_frame", "base_footprint");
 
+  // QoS Parameters
+  params_.cloud_reliability = this->declare_parameter<std::string>("cloud_reliability", "best_effort");
+  params_.debug_pub_reliability = this->declare_parameter<std::string>("debug_pub_reliability", "best_effort");
+
   cloud_raw_ = std::make_shared<PointCloud>();
   cloud_roi_ = std::make_shared<PointCloud>();
   cloud_plane_ = std::make_shared<PointCloud>();
@@ -52,14 +56,24 @@ WashingMachineDetectionComponent::on_configure(const rclcpp_lifecycle::State &) 
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
-  auto qos = rclcpp::SensorDataQoS();
-  std::string input_topic = this->declare_parameter<std::string>("input_topic", "cloud_filtered");
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable"
+      ? RMW_QOS_POLICY_RELIABILITY_RELIABLE
+      : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
+
+  std::string input_topic = this->declare_parameter<std::string>("input_topic", "filtered_cloud");
   sub_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    input_topic, qos,
+    input_topic, make_qos(params_.cloud_reliability, 10),
     std::bind(&WashingMachineDetectionComponent::cloudCallback, this, std::placeholders::_1));
 
-  pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("washing_machine_debug_cloud", qos);
+  pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
+    "washing_machine_debug_cloud", make_qos(params_.debug_pub_reliability, 10));
 
+  RCLCPP_INFO(this->get_logger(), "Cloud subscription reliability: %s", params_.cloud_reliability.c_str());
+  RCLCPP_INFO(this->get_logger(), "Debug publisher reliability: %s", params_.debug_pub_reliability.c_str());
   RCLCPP_INFO(this->get_logger(), "Configured WashingMachineDetectionComponent");
   return CallbackReturn::SUCCESS;
 }

@@ -57,7 +57,11 @@ private:
     std::string base_frame;
     std::string input_topic;
     std::string output_topic;
-    
+
+    // QoS Reliability
+    std::string cloud_reliability;
+    std::string debug_pub_reliability;
+
     // ROI Filtering
     double x_min, x_max;
     double y_min, y_max;

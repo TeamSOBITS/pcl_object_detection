@@ -8,7 +8,7 @@ namespace pcl_object_detection {
 
 FloorDetectionComponent::FloorDetectionComponent(const rclcpp::NodeOptions & options)
 : rclcpp_lifecycle::LifecycleNode("floor_detection", options) {
-  this->declare_parameter<std::string>("input_topic", "cloud_filtered");
+  this->declare_parameter<std::string>("input_topic", "filtered_cloud");
   this->declare_parameter<std::string>("base_frame", "base_footprint");
   
   this->declare_parameter<double>("floor_height_min", -0.1);
@@ -31,6 +31,10 @@ FloorDetectionComponent::FloorDetectionComponent(const rclcpp::NodeOptions & opt
   this->declare_parameter<double>("object_size_y_max", 0.80);
   this->declare_parameter<double>("object_size_z_min", 0.05);
   this->declare_parameter<double>("object_size_z_max", 0.80);
+
+  this->declare_parameter<std::string>("cloud_reliability", "best_effort");
+  this->declare_parameter<std::string>("detections_pub_reliability", "reliable");
+  this->declare_parameter<std::string>("debug_pub_reliability", "best_effort");
 }
 
 FloorDetectionComponent::CallbackReturn FloorDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
@@ -59,6 +63,10 @@ FloorDetectionComponent::CallbackReturn FloorDetectionComponent::on_configure(co
   params_.obj_z_min = this->get_parameter("object_size_z_min").as_double();
   params_.obj_z_max = this->get_parameter("object_size_z_max").as_double();
 
+  cloud_reliability_ = this->get_parameter("cloud_reliability").as_string();
+  detections_pub_reliability_ = this->get_parameter("detections_pub_reliability").as_string();
+  debug_pub_reliability_ = this->get_parameter("debug_pub_reliability").as_string();
+
   // Log Parameters
   RCLCPP_INFO(this->get_logger(), "Parameters Loaded:");
   RCLCPP_INFO(this->get_logger(), "Base Frame: %s", params_.base_frame.c_str());
@@ -83,6 +91,11 @@ FloorDetectionComponent::CallbackReturn FloorDetectionComponent::on_configure(co
   RCLCPP_INFO(this->get_logger(), "Y: [%f, %f]", params_.obj_y_min, params_.obj_y_max);
   RCLCPP_INFO(this->get_logger(), "Z: [%f, %f]", params_.obj_z_min, params_.obj_z_max);
 
+  RCLCPP_INFO(this->get_logger(), "QoS Reliability:");
+  RCLCPP_INFO(this->get_logger(), "  Cloud Subscription: %s", cloud_reliability_.c_str());
+  RCLCPP_INFO(this->get_logger(), "  Detections Publisher: %s", detections_pub_reliability_.c_str());
+  RCLCPP_INFO(this->get_logger(), "  Debug Publisher: %s", debug_pub_reliability_.c_str());
+
   // Allocate PCL Memory
   cloud_filtered_ = std::make_shared<PointCloud>();
   cloud_objects_ = std::make_shared<PointCloud>();
@@ -97,9 +110,15 @@ FloorDetectionComponent::CallbackReturn FloorDetectionComponent::on_configure(co
   ec_.setSearchMethod(tree_);
 
   // Create Publishers and TF Broadcaster
-  auto qos = rclcpp::SensorDataQoS();
-  pub_detections_ = this->create_publisher<vision_msgs::msg::Detection3DArray>("floor_objects", 10);
-  pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("floor_debug_cloud", qos);
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable" ? RMW_QOS_POLICY_RELIABILITY_RELIABLE : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
+  pub_detections_ = this->create_publisher<vision_msgs::msg::Detection3DArray>(
+    "floor_objects", make_qos(detections_pub_reliability_, 10));
+  pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
+    "floor_debug_cloud", make_qos(debug_pub_reliability_, 10));
   
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
@@ -114,7 +133,11 @@ FloorDetectionComponent::CallbackReturn FloorDetectionComponent::on_activate(con
   pub_debug_cloud_->on_activate();
 
   // Start Data Flow via Subscription
-  auto qos = rclcpp::SensorDataQoS();
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable" ? RMW_QOS_POLICY_RELIABILITY_RELIABLE : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
   std::string input_topic = this->get_parameter("input_topic").as_string();
 
   // Enable IPC explicitly for the subscriber
@@ -122,7 +145,7 @@ FloorDetectionComponent::CallbackReturn FloorDetectionComponent::on_activate(con
   sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
 
   sub_filtered_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    input_topic, qos,
+    input_topic, make_qos(cloud_reliability_, 10),
     std::bind(&FloorDetectionComponent::cloudCallback, this, std::placeholders::_1),
     sub_options);
 

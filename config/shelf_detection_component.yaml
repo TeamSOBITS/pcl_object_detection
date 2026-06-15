@@ -1,6 +1,6 @@
 /**/shelf_detection:
   ros__parameters:
-    input_topic: "cloud_filtered"
+    input_topic: "preprocessor/filtered_cloud"
     base_frame: "base_footprint"
 
     # Passthrough Filter
@@ -28,4 +28,12 @@
     object_size_z_min: 0.05
     object_size_z_max: 0.80
 
-    
+    # QoS reliability ("reliable" or "best_effort").
+    #   cloud_reliability          : filtered input cloud subscription. Must match
+    #     the preprocessor's output_reliability.
+    #   detections_pub_reliability : detection output publisher. Keep "reliable"
+    #     so downstream consumers never miss a detection.
+    #   debug_pub_reliability      : debug cloud publisher (visualization).
+    cloud_reliability: "best_effort"
+    detections_pub_reliability: "reliable"
+    debug_pub_reliability: "best_effort"

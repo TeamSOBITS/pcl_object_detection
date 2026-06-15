@@ -26,6 +26,7 @@ ClothKeypointDetectorComponent::ClothKeypointDetectorComponent(const rclcpp::Nod
   params_.edge_percentile       = this->declare_parameter<double>("edge_percentile", 5.0);
   params_.col_band_fraction     = this->declare_parameter<double>("col_band_fraction", 0.25);
   params_.cloud_reliability     = this->declare_parameter<std::string>("cloud_reliability", "best_effort");
+  params_.debug_pub_reliability = this->declare_parameter<std::string>("debug_pub_reliability", "best_effort");
 }
 
 ClothKeypointDetectorComponent::CallbackReturn
@@ -49,7 +50,8 @@ ClothKeypointDetectorComponent::on_configure(const rclcpp_lifecycle::State &)
         else if (n == "edge_percentile")    params_.edge_percentile    = p.as_double();
         else if (n == "col_band_fraction")  params_.col_band_fraction  = p.as_double();
         // Params that require deactivate → configure → activate to take effect
-        else if (n == "cloud_topic" || n == "cloud_reliability") {
+        else if (n == "cloud_topic" || n == "cloud_reliability" ||
+                 n == "debug_pub_reliability") {
           if (is_active) {
             r.successful = false;
             r.reason = n + " cannot be changed while active — deactivate, cleanup, then configure";
@@ -61,10 +63,14 @@ ClothKeypointDetectorComponent::on_configure(const rclcpp_lifecycle::State &)
     });
 
   // Re-read connection params — they may have been changed while inactive via ros2 param set.
-  params_.cloud_topic       = this->get_parameter("cloud_topic").as_string();
-  params_.cloud_reliability = this->get_parameter("cloud_reliability").as_string();
+  params_.cloud_topic          = this->get_parameter("cloud_topic").as_string();
+  params_.cloud_reliability     = this->get_parameter("cloud_reliability").as_string();
+  params_.debug_pub_reliability = this->get_parameter("debug_pub_reliability").as_string();
 
-  auto qos = rclcpp::QoS(10);
+  auto pub_reliability = (params_.debug_pub_reliability == "reliable")
+    ? RMW_QOS_POLICY_RELIABILITY_RELIABLE
+    : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
+  auto qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliability(pub_reliability);
   pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
     "cloth_keypoint_detector/debug_cloud", qos);
   RCLCPP_INFO(this->get_logger(), "ClothKeypointDetectorComponent configured:");
@@ -78,6 +84,7 @@ ClothKeypointDetectorComponent::on_configure(const rclcpp_lifecycle::State &)
   RCLCPP_INFO(this->get_logger(), "  edge_percentile:       %.2f", params_.edge_percentile);
   RCLCPP_INFO(this->get_logger(), "  col_band_fraction:     %.2f", params_.col_band_fraction);
   RCLCPP_INFO(this->get_logger(), "  cloud_reliability:     %s", params_.cloud_reliability.c_str());
+  RCLCPP_INFO(this->get_logger(), "  debug_pub_reliability: %s", params_.debug_pub_reliability.c_str());
   return CallbackReturn::SUCCESS;
 }
 

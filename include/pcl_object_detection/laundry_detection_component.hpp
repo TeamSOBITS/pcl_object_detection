@@ -59,6 +59,9 @@ private:
     
     std::string input_topic;
     std::string base_frame;
+    std::string cloud_reliability;
+    std::string drum_pub_reliability;
+    std::string laundry_pub_reliability;
   } params_;
 
   // ROS

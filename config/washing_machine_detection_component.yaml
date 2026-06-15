@@ -1,7 +1,7 @@
 /**/washing_machine_detection:
   ros__parameters:
     # PointCloud2 topic to process
-    input_topic: "/cloud_filtered"
+    input_topic: "preprocessor/filtered_cloud"
     
     # Coordinates in ROI and output TF will be relative to this frame
     base_frame: "base_footprint"
@@ -38,3 +38,10 @@
     # Depth offset along the surface normal (m)
     # Positive values move the TF away from the washer (towards the robot)
     depth_shift: 0.05
+
+    # QoS reliability ("reliable" or "best_effort").
+    #   cloud_reliability     : filtered input cloud subscription. Must match the
+    #     preprocessor's output_reliability.
+    #   debug_pub_reliability : debug cloud publisher (visualization).
+    cloud_reliability: "best_effort"
+    debug_pub_reliability: "best_effort"

@@ -68,6 +68,8 @@ private:
     double col_band_fraction;
     // QoS reliability for the cloud subscriber: "reliable" or "best_effort".
     std::string cloud_reliability;
+    // QoS reliability for the debug cloud publisher: "reliable" or "best_effort".
+    std::string debug_pub_reliability;
   } params_;
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_;

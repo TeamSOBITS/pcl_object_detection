@@ -30,16 +30,27 @@ PreProcessorComponent::PreProcessorComponent(const rclcpp::NodeOptions & options
   tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
-  auto qos_reliable = rclcpp::QoS(10);
-  auto qos_sensor = rclcpp::SensorDataQoS();
-  
-  std::string output_topic = this->declare_parameter<std::string>("output_topic", "cloud_filtered");
+  std::string input_reliability = this->declare_parameter<std::string>("input_reliability", "best_effort");
+  std::string output_reliability = this->declare_parameter<std::string>("output_reliability", "reliable");
+
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable"
+      ? RMW_QOS_POLICY_RELIABILITY_RELIABLE
+      : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
+
+  RCLCPP_INFO(this->get_logger(), "QoS reliability - input: %s, output: %s",
+    input_reliability.c_str(), output_reliability.c_str());
+
+  std::string output_topic = this->declare_parameter<std::string>("output_topic", "filtered_cloud");
   pub_filtered_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
-    output_topic, qos_reliable);
-    
+    output_topic, make_qos(output_reliability, 10));
+
   std::string input_topic = this->declare_parameter<std::string>("input_topic", "/camera/depth/color/points");
   sub_raw_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    input_topic, 10,
+    input_topic, make_qos(input_reliability, 10),
     std::bind(&PreProcessorComponent::cloudCallback, this, std::placeholders::_1));
     
   RCLCPP_INFO(this->get_logger(), "PreProcessor Component Initialized");

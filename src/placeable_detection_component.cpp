@@ -8,7 +8,7 @@ namespace pcl_object_detection {
 
 PlaceableDetectionComponent::PlaceableDetectionComponent(const rclcpp::NodeOptions & options)
 : rclcpp_lifecycle::LifecycleNode("placeable_detection", options) {
-  this->declare_parameter<std::string>("input_topic", "cloud_filtered");
+  this->declare_parameter<std::string>("input_topic", "filtered_cloud");
   this->declare_parameter<std::string>("base_frame", "base_footprint");
   
   this->declare_parameter<double>("place_x_min", 0.3);
@@ -23,6 +23,10 @@ PlaceableDetectionComponent::PlaceableDetectionComponent(const rclcpp::NodeOptio
   this->declare_parameter<double>("edge_margin", 0.05);
   this->declare_parameter<double>("plane_dist_threshold", 0.02);
   this->declare_parameter<int>("ransac_max_iterations", 200);
+
+  this->declare_parameter<std::string>("cloud_reliability", "best_effort");
+  this->declare_parameter<std::string>("detections_pub_reliability", "reliable");
+  this->declare_parameter<std::string>("debug_pub_reliability", "best_effort");
 }
 
 PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
@@ -45,6 +49,10 @@ PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_conf
   params_.plane_dist_threshold = this->get_parameter("plane_dist_threshold").as_double();
   params_.ransac_max_iterations = this->get_parameter("ransac_max_iterations").as_int();
 
+  cloud_reliability_ = this->get_parameter("cloud_reliability").as_string();
+  detections_pub_reliability_ = this->get_parameter("detections_pub_reliability").as_string();
+  debug_pub_reliability_ = this->get_parameter("debug_pub_reliability").as_string();
+
   // Log Parameters
   RCLCPP_INFO(this->get_logger(), "Parameters Loaded:");
   RCLCPP_INFO(this->get_logger(), "Base Frame: %s", params_.base_frame.c_str());
@@ -58,6 +66,10 @@ PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_conf
   RCLCPP_INFO(this->get_logger(), "  Edge Margin: %f", params_.edge_margin);
   RCLCPP_INFO(this->get_logger(), "  Plane Distance Threshold: %f", params_.plane_dist_threshold);
   RCLCPP_INFO(this->get_logger(), "  Max Iterations: %d", params_.ransac_max_iterations);
+  RCLCPP_INFO(this->get_logger(), "QoS Reliability:");
+  RCLCPP_INFO(this->get_logger(), "  Cloud (sub): %s", cloud_reliability_.c_str());
+  RCLCPP_INFO(this->get_logger(), "  Detections (pub): %s", detections_pub_reliability_.c_str());
+  RCLCPP_INFO(this->get_logger(), "  Debug Cloud (pub): %s", debug_pub_reliability_.c_str());
 
   // Allocate PCL Memory
   cloud_filtered_ = std::make_shared<PointCloud>();
@@ -73,9 +85,15 @@ PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_conf
   seg_.setMaxIterations(params_.ransac_max_iterations);
 
   // Create Publishers and TF Broadcaster
-  auto qos = rclcpp::SensorDataQoS();
-  pub_detections_ = this->create_publisher<vision_msgs::msg::Detection3DArray>("placeable_poses", 10);
-  pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("placeable_debug_cloud", qos);
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable" ? RMW_QOS_POLICY_RELIABILITY_RELIABLE : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
+  pub_detections_ = this->create_publisher<vision_msgs::msg::Detection3DArray>(
+    "placeable_poses", make_qos(detections_pub_reliability_, 10));
+  pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
+    "placeable_debug_cloud", make_qos(debug_pub_reliability_, 10));
   
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
@@ -90,7 +108,11 @@ PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_acti
   pub_debug_cloud_->on_activate();
 
   // Start Data Flow via Subscription
-  auto qos = rclcpp::SensorDataQoS();
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable" ? RMW_QOS_POLICY_RELIABILITY_RELIABLE : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
   std::string input_topic = this->get_parameter("input_topic").as_string();
 
   // Enable IPC explicitly for the subscriber
@@ -98,7 +120,7 @@ PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_acti
   sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
 
   sub_filtered_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    input_topic, qos,
+    input_topic, make_qos(cloud_reliability_, 10),
     std::bind(&PlaceableDetectionComponent::cloudCallback, this, std::placeholders::_1),
     sub_options);
 

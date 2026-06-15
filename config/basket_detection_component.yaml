@@ -1,7 +1,7 @@
 /**/basket_detection:
   ros__parameters:
     # Topic for the pre-processed point cloud (transformed to base_footprint)
-    input_topic: "cloud_filtered"
+    input_topic: "preprocessor/filtered_cloud"
     
     # Target frame for TF broadcasting (and processing)
     base_frame: "base_footprint"
@@ -42,3 +42,13 @@
     # cloth_inner_margin: How far from the walls (in meters) to look for cloth.
     # This prevents the algorithm from selecting the basket walls as cloth.
     cloth_inner_margin: 0.10
+
+    # QoS reliability ("reliable" or "best_effort").
+    #   cloud_reliability          : filtered input cloud subscription. Must match
+    #     the preprocessor's output_reliability.
+    #   detections_pub_reliability : detection output publisher. Keep "reliable"
+    #     so downstream consumers never miss a detection.
+    #   debug_pub_reliability      : debug cloud publisher (visualization).
+    cloud_reliability: "best_effort"
+    detections_pub_reliability: "reliable"
+    debug_pub_reliability: "best_effort"

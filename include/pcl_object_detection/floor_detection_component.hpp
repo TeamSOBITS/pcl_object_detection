@@ -71,6 +71,11 @@ private:
   pcl::search::KdTree<PointT>::Ptr tree_;
   pcl::ExtractIndices<PointT> extract_;
 
+  // QoS Reliability Config
+  std::string cloud_reliability_;
+  std::string detections_pub_reliability_;
+  std::string debug_pub_reliability_;
+
   // Parameters
   struct {
     std::string base_frame;
