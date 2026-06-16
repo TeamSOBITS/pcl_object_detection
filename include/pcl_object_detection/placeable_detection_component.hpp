@@ -59,7 +59,8 @@ private:
   PointCloud::Ptr cloud_table_zone_;
   PointCloud::Ptr cloud_plane_;
   PointCloud::Ptr cloud_obstacles_;
-  
+  PointCloud::Ptr cloud_placeable_;  // grid spots that pass the clearance gate (debug view)
+
   pcl::SACSegmentation<PointT> seg_;
   pcl::ExtractIndices<PointT> extract_;
   pcl::search::KdTree<PointT>::Ptr tree_;

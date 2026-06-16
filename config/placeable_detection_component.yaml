@@ -8,13 +8,13 @@
     place_x_max: 1.0
     place_y_min: -0.5
     place_y_max: 0.5
-    place_z_min: -0.5
-    place_z_max: 0.5
+    place_z_min: 0.3
+    place_z_max: 1.0
     
     # Safety Logic
     search_interval: 0.02      # Grid density
-    obstacle_tolerance: 0.1   # Radius needed for an object
-    edge_margin: 0.05          # Distance from table edge
+    obstacle_tolerance: 0.1    # Radius needed for an object
+    edge_margin: 0.1           # Distance from table edge
     plane_dist_threshold: 0.02 # Distance from plane to consider as "on the table"
 
     # RANSAC Parameters
@@ -28,4 +28,4 @@
     #   debug_pub_reliability      : debug cloud publisher (visualization).
     cloud_reliability: "best_effort"
     detections_pub_reliability: "reliable"
-    debug_pub_reliability: "best_effort"
+    debug_pub_reliability: "reliable"

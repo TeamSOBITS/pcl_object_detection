@@ -4,6 +4,9 @@
 #include <pcl/common/centroid.h>
 #include <pcl_conversions/pcl_conversions.h>
 
+#include <cmath>
+#include <limits>
+
 namespace pcl_object_detection {
 
 PlaceableDetectionComponent::PlaceableDetectionComponent(const rclcpp::NodeOptions & options)
@@ -26,7 +29,7 @@ PlaceableDetectionComponent::PlaceableDetectionComponent(const rclcpp::NodeOptio
 
   this->declare_parameter<std::string>("cloud_reliability", "best_effort");
   this->declare_parameter<std::string>("detections_pub_reliability", "reliable");
-  this->declare_parameter<std::string>("debug_pub_reliability", "best_effort");
+  this->declare_parameter<std::string>("debug_pub_reliability", "reliable");
 }
 
 PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
@@ -76,6 +79,7 @@ PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_conf
   cloud_table_zone_ = std::make_shared<PointCloud>();
   cloud_plane_ = std::make_shared<PointCloud>();
   cloud_obstacles_ = std::make_shared<PointCloud>();
+  cloud_placeable_ = std::make_shared<PointCloud>();
   tree_ = std::make_shared<pcl::search::KdTree<PointT>>();
 
   // Configure PCL Defaults
@@ -152,6 +156,7 @@ PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_clea
   cloud_table_zone_.reset();
   cloud_plane_.reset();
   cloud_obstacles_.reset();
+  cloud_placeable_.reset();
   tree_.reset();
 
   return CallbackReturn::SUCCESS;
@@ -168,16 +173,40 @@ void PlaceableDetectionComponent::cloudCallback(const sensor_msgs::msg::PointClo
   cloud_table_zone_->clear();
   cloud_plane_->clear();
   cloud_obstacles_->clear();
+  cloud_placeable_->clear();
+
+  // The placement search assumes the cloud is already in base_frame (X forward,
+  // Y left, Z up, origin at the robot). If the producer ever publishes another
+  // frame, the grid search and the broadcast TF would silently be wrong.
+  if (msg->header.frame_id != params_.base_frame) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+      "Input cloud frame '%s' != base_frame '%s'; skipping (cloud is not transformed here).",
+      msg->header.frame_id.c_str(), params_.base_frame.c_str());
+    return;
+  }
+
+  // Publishes the PLACEABLE region (the debug view): every grid spot that passed
+  // the obstacle-clearance gate, i.e. where an object could actually be set down.
+  // Called on every exit path so the topic stays alive and RViz never sees it go
+  // stale — on any early return cloud_placeable_ is empty and we publish an empty
+  // cloud (a valid, displayable "no placeable area this frame" message).
+  auto publishDebugCloud = [&]() {
+    if (pub_debug_cloud_->get_subscription_count() == 0) return;
+    auto debug_msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
+    pcl::toROSMsg(*cloud_placeable_, *debug_msg);
+    debug_msg->header = msg->header;
+    pub_debug_cloud_->publish(std::move(debug_msg));
+  };
 
   pcl::fromROSMsg(*msg, *cloud_filtered_);
-  if (cloud_filtered_->empty()) return;
+  if (cloud_filtered_->empty()) { publishDebugCloud(); return; }
 
   // Isolate the table volume
   PointCloudUtility::applyPassThrough(cloud_filtered_, cloud_table_zone_, "x", params_.place_x_min, params_.place_x_max);
   PointCloudUtility::applyPassThrough(cloud_table_zone_, cloud_table_zone_, "y", params_.place_y_min, params_.place_y_max);
   PointCloudUtility::applyPassThrough(cloud_table_zone_, cloud_table_zone_, "z", params_.place_z_min, params_.place_z_max);
-  
-  if (cloud_table_zone_->empty()) return;
+
+  if (cloud_table_zone_->empty()) { publishDebugCloud(); return; }
 
   // Plane Segmentation (Find Table Surface)
   pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
@@ -187,7 +216,7 @@ void PlaceableDetectionComponent::cloudCallback(const sensor_msgs::msg::PointClo
   seg_.setInputCloud(cloud_table_zone_);
   seg_.segment(*inliers, *coeffs);
 
-  if (inliers->indices.empty()) return;
+  if (inliers->indices.empty()) { publishDebugCloud(); return; }
 
   extract_.setInputCloud(cloud_table_zone_);
   extract_.setIndices(inliers);
@@ -200,48 +229,84 @@ void PlaceableDetectionComponent::cloudCallback(const sensor_msgs::msg::PointClo
   extract_.setNegative(true);
   extract_.filter(*cloud_obstacles_); 
 
-  if (cloud_plane_->empty()) return;
+  if (cloud_plane_->empty()) { publishDebugCloud(); return; }
 
   // Determine the Searchable Area (Table boundaries minus safety margin)
   Eigen::Vector4f min_pt, max_pt, centroid;
   pcl::getMinMax3D(*cloud_plane_, min_pt, max_pt);
   pcl::compute3DCentroid(*cloud_plane_, centroid);
 
-  // Set up KD-Tree for Obstacle avoidance
+  // Set up KD-Tree for Obstacle avoidance.
+  // Project obstacles onto the table plane (flatten Z to the surface height) so
+  // clearance is measured as a horizontal footprint distance, not a 3D distance.
+  // Otherwise a tall object's upper points read as "far" even when its base
+  // overlaps the candidate spot in XY.
+  const float plane_z = static_cast<float>(centroid[2]);
   bool has_obstacles = !cloud_obstacles_->empty();
   if (has_obstacles) {
-    tree_->setInputCloud(cloud_obstacles_);
+    auto cloud_obstacles_flat = std::make_shared<PointCloud>();
+    cloud_obstacles_flat->reserve(cloud_obstacles_->size());
+    for (const auto & pt : cloud_obstacles_->points) {
+      PointT flat;
+      flat.x = pt.x;
+      flat.y = pt.y;
+      flat.z = plane_z;
+      cloud_obstacles_flat->push_back(flat);
+    }
+    tree_->setInputCloud(cloud_obstacles_flat);
   }
 
-  // Grid Search for the safest spot
-  double best_score = -1.0; 
+  // Guard against a degenerate searchable extent (plane patch smaller than the
+  // margins on either axis): the loops below would silently never execute.
+  const double x_lo = min_pt.x() + params_.edge_margin;
+  const double x_hi = max_pt.x() - params_.edge_margin;
+  const double y_lo = min_pt.y() + params_.edge_margin;
+  const double y_hi = max_pt.y() - params_.edge_margin;
+  if (x_lo >= x_hi || y_lo >= y_hi) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+      "Searchable plane extent too small for edge_margin %.3f (x:[%.3f,%.3f] y:[%.3f,%.3f]).",
+      params_.edge_margin, min_pt.x(), max_pt.x(), min_pt.y(), max_pt.y());
+    publishDebugCloud();
+    return;
+  }
+
+  // Grid Search. Among all spots that satisfy the obstacle-clearance gate,
+  // pick the one CLOSEST to the robot (origin of base_frame is at the robot).
+  double best_score = std::numeric_limits<double>::max();
   PointT best_point;
   bool found = false;
 
-  for (double x = min_pt.x() + params_.edge_margin; x < max_pt.x() - params_.edge_margin; x += params_.search_interval) {
-    for (double y = min_pt.y() + params_.edge_margin; y < max_pt.y() - params_.edge_margin; y += params_.search_interval) {
-      
+  for (double x = x_lo; x < x_hi; x += params_.search_interval) {
+    for (double y = y_lo; y < y_hi; y += params_.search_interval) {
+
       PointT search_pt;
-      search_pt.x = x; 
-      search_pt.y = y; 
-      search_pt.z = centroid[2];
+      search_pt.x = x;
+      search_pt.y = y;
+      search_pt.z = plane_z;
 
       double min_dist_to_obs;
       if (has_obstacles) {
         std::vector<int> nn_indices(1);
         std::vector<float> nn_dists(1);
-        tree_->nearestKSearch(search_pt, 1, nn_indices, nn_dists);
-        min_dist_to_obs = std::sqrt(nn_dists[0]);
+        if (tree_->nearestKSearch(search_pt, 1, nn_indices, nn_dists) > 0) {
+          min_dist_to_obs = std::sqrt(nn_dists[0]);
+        } else {
+          // No neighbor returned: treat as clear.
+          min_dist_to_obs = 100.0;
+        }
       } else {
         // If there are no obstacles, any point on the table is perfectly safe
-        min_dist_to_obs = 100.0; 
+        min_dist_to_obs = 100.0;
       }
 
-      // We want a point that guarantees obstacle tolerance clearance, 
-      // and we prefer the one furthest away from all clutter.
+      // Gate on guaranteed clearance, then prefer the candidate nearest the robot.
       if (min_dist_to_obs >= params_.obstacle_tolerance) {
-        if (min_dist_to_obs > best_score) {
-          best_score = min_dist_to_obs;
+        // Record this spot for the placeable-region debug cloud.
+        cloud_placeable_->push_back(search_pt);
+
+        double robot_dist = std::hypot(search_pt.x, search_pt.y);
+        if (robot_dist < best_score) {
+          best_score = robot_dist;
           best_point = search_pt;
           found = true;
         }
@@ -289,13 +354,8 @@ void PlaceableDetectionComponent::cloudCallback(const sensor_msgs::msg::PointClo
     RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "No safe placement position found on table.");
   }
 
-  // Debug Cloud Publishing
-  if (pub_debug_cloud_->get_subscription_count() > 0) {
-    auto debug_msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
-    pcl::toROSMsg(*cloud_obstacles_, *debug_msg);
-    debug_msg->header = msg->header;
-    pub_debug_cloud_->publish(std::move(debug_msg));
-  }
+  // Debug Cloud Publishing (also runs on every early-return path above).
+  publishDebugCloud();
 }
 
 }  // namespace pcl_object_detection
