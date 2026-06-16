@@ -1,6 +1,6 @@
 <a name="readme-top"></a>
 
-[JP](README.md) | [EN](README_en.md)
+[JP](README_ja.md) | [EN](README.md)
 
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
@@ -10,113 +10,114 @@
 
 # PCL Object Detection
 
-## 概要
+## Overview
 
-- ROS 2 Jazzy向けの高性能かつコンポーネント指向な物体検出パッケージです。
-- **Point Cloud Library (PCL)** を利用したルールベースの物体検出を行います。
-- アーキテクチャ: **ROS 2 Lifecycle Nodes** を採用し、**ゼロコピー・プロセス間通信**を実現しています。
-- モード: 床、机、棚、配置可能位置の検出、および2D-LiDARによる直線検出に対応しています。
+- A high-performance, component-based object detection package for ROS 2 Jazzy.
+- Utilizes the **Point Cloud Library (PCL)** for rule-based detection.
+- Architecture: **ROS 2 Lifecycle Nodes** with **Zero-Copy Intra-Process Communication**.
+- Modes: Floor, Table, Shelf, Placeable Positions, and 2D-LiDAR Line Detection.
 
-<p align="right">(<a href="#readme-top">上に戻る</a>)</p>
-
-
-## セットアップ
-
-ここで，本リポジトリのセットアップ方法について説明します．
-
-<p align="right">(<a href="#readme-top">上に戻る</a>)</p>
+<p align="right">(<a href="#readme-top">Back to Top</a>)</p>
 
 
-### 環境条件
+<!-- Setup -->
+## Setup
 
-正常に動作させるため、以下の環境を整えてください。
+Here, we describe the setup process for this repository.
 
-| System | Version |
+<p align="right">(<a href="#readme-top">Back to Top</a>)</p>
+
+
+### Environment
+
+Below are the system requirements for normal operation.
+
+| System  | Version |
 | ------------- | ------------- |
 | Ubuntu | 24.04 (Noble Numbat) |
 | ROS | Jazzy Jalisco |
 
 > [!NOTE]
-> `Ubuntu` や `ROS` のインストール方法については、[SOBITS Manual](https://github.com/TeamSOBITS/sobits_manual#%E9%96%8B%E7%99%BA%E7%92%B0%E5%A2%83%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6) を参照してください。
+> If you need to install `Ubuntu` or `ROS`, please check our [SOBITS Manual](https://github.com/TeamSOBITS/sobits_manual#%E9%96%8B%E7%99%BA%E7%92%B0%E5%A2%83%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6).
 
-<p align="right">(<a href="#readme-top">上に戻る</a>)</p>
+<p align="right">(<a href="#readme-top">Back to Top</a>)</p>
 
 
-### インストール方法
-1. ROSワークスペースの `src` フォルダに移動します。
+### Installation
+
+1. Move to the `src` folder of your ROS workspace.
    ```bash
    $ cd ~/colcon_ws/src/
    ```
 
-2. 本リポジトリをクローンします。
+2. Clone this repository.
    ```bash
    $ git clone -b jazzy-devel https://github.com/TeamSOBITS/pcl_object_detection.git
    ```
 
-3. 依存パッケージをインストールします。
+3. Install the dependent packages.
    ```bash
    $ bash install.sh
    ```
 
-4. パッケージをコンパイルします。
+4. Compile the package.
    ```bash
    $ cd ~/colcon_ws
    $ colcon build --symlink-install
    ```
 
-<p align="right">(<a href="#readme-top">上に戻る</a>)</p>
+<p align="right">(<a href="#readme-top">Back to Top</a>)</p>
 
 
-## 実行・操作方法
+## Usage
+The system runs as a single `ComposableNodeContainer` to enable zero-copy memory sharing. 
 
-本システムは、ゼロコピー・メモリ共有を実現するため、単一の `ComposableNodeContainer` として動作します。
-
-コンテナを起動するコマンド:
+Launch the container:
 ```bash
 ros2 launch pcl_object_detection pcl_object_detection.launch.py
 ```
 
-<p align="right">(<a href="#readme-top">上に戻る</a>)</p>
+<p align="right">(<a href="#readme-top">Back to Top</a>)</p>
 
 
-### ライフサイクル管理
+### Lifecycle Management
 
-本パッケージは **ROS 2 Lifecycle Nodes** を使用しています。デフォルトでは、すべての検出ノードは `Unconfigured` 状態です。処理を開始するには、その状態を管理する必要があります。
+This package uses **ROS 2 Lifecycle Nodes**. By default, all detection workers are `Unconfigured`. You must manage their state to begin processing.
 
-#### ワークフローの例 (Table Detectionの場合)
+#### Workflow Example (Table Detection)
 
-1. **Configure** (メモリの確保とパラメータの読み込み):
+1. **Configure** (Allocates memory and loads parameters):
    ```bash
    ros2 lifecycle set /pcl_object_detection/table_detection configure
    ```
-2. **Activate** (データ購読と処理の開始):
+2. **Activate** (Starts data subscription and processing):
    ```bash
    ros2 lifecycle set /pcl_object_detection/table_detection activate
    ```
-3. **Deactivate** (処理の即時停止、CPU負荷ゼロ):
+3. **Deactivate** (Stops processing immediately, 0% CPU overhead):
    ```bash
    ros2 lifecycle set /pcl_object_detection/table_detection deactivate
    ```
 
-| モード | ノード名 | 機能 |
+| Mode | Node Name | Function |
 | --- | --- | --- |
-| 1 | `table_detection` | 水平面上の物体を検出 |
-| 2 | `floor_detection` | 床上の物体を検出 (脚のフィルタリング機能付き) |
-| 3 | `shelf_detection` | 収納棚の中の物体を検出 |
-| 4 | `placeable_detection`| 物体の配置可能な空きスペースを検出 |
-| 5 | `line_detection` | 2D-LiDARを用いた直線の検出 |
+| 1 | `table_detection` | Detect objects on horizontal surface |
+| 2 | `floor_detection` | Detect objects on floor (includes leg filtering) |
+| 3 | `shelf_detection` | Detect objects in storage bins |
+| 4 | `placeable_detection`| Find empty space for object placement |
+| 5 | `line_detection` | Detect lines from 2D LiDAR |
 
-※ すべてのパラメータは [config](./config/) ディレクトリ内で定義されており、ノードごとに個別に調整可能です。
+※ All parameters are defined in the [config](./config/) directory and can be tuned independently per node.
 
-<p align="right">(<a href="#readme-top">上に戻る</a>)</p>
+<p align="right">(<a href="#readme-top">Back to Top</a>)</p>
 
 
-<!-- 参考文献 -->
-## 参考文献
+<!-- References -->
+## References
 
 - [Point Cloud Library](https://pointclouds.org/)
 
-<p align="right">(<a href="#readme-top">上に戻る</a>)</p>
+<p align="right">(<a href="#readme-top">Back to Top</a>)</p>
 
 
 
