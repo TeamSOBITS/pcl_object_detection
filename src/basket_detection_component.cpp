@@ -9,7 +9,7 @@ namespace pcl_object_detection {
 
 BasketDetectionComponent::BasketDetectionComponent(const rclcpp::NodeOptions & options)
 : rclcpp_lifecycle::LifecycleNode("basket_detection", options) {
-  this->declare_parameter<std::string>("input_topic", "cloud_filtered");
+  this->declare_parameter<std::string>("input_topic", "filtered_cloud");
   this->declare_parameter<std::string>("base_frame", "base_footprint");
   this->declare_parameter<double>("detection_height_min", 0.05);
   this->declare_parameter<double>("detection_height_max", 0.60);
@@ -28,6 +28,12 @@ BasketDetectionComponent::BasketDetectionComponent(const rclcpp::NodeOptions & o
 
   this->declare_parameter<bool>("cloth_detection_enabled", true);
   this->declare_parameter<double>("cloth_inner_margin", 0.08);
+
+  this->declare_parameter<std::string>("detection_id_prefix", "basket");
+
+  this->declare_parameter<std::string>("cloud_reliability", "best_effort");
+  this->declare_parameter<std::string>("detections_pub_reliability", "reliable");
+  this->declare_parameter<std::string>("debug_pub_reliability", "best_effort");
 }
 
 BasketDetectionComponent::CallbackReturn BasketDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
@@ -52,6 +58,12 @@ BasketDetectionComponent::CallbackReturn BasketDetectionComponent::on_configure(
 
     params_.cloth_detection_enabled = this->get_parameter("cloth_detection_enabled").as_bool();
     params_.cloth_inner_margin = this->get_parameter("cloth_inner_margin").as_double();
+
+    params_.detection_id_prefix = this->get_parameter("detection_id_prefix").as_string();
+
+    cloud_reliability_ = this->get_parameter("cloud_reliability").as_string();
+    detections_pub_reliability_ = this->get_parameter("detections_pub_reliability").as_string();
+    debug_pub_reliability_ = this->get_parameter("debug_pub_reliability").as_string();
   } catch (const rclcpp::ParameterTypeException& e) {
     RCLCPP_ERROR(this->get_logger(), "Parameter type mismatch: %s", e.what());
     return CallbackReturn::FAILURE;
@@ -67,10 +79,18 @@ BasketDetectionComponent::CallbackReturn BasketDetectionComponent::on_configure(
 
   ec_.setSearchMethod(tree_);
 
-  auto qos = rclcpp::SensorDataQoS();
-  pub_detections_ = this->create_publisher<vision_msgs::msg::Detection3DArray>("basket_objects", 10);
-  pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("basket_debug_cloud", qos);
-  
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable" ? RMW_QOS_POLICY_RELIABILITY_RELIABLE : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
+
+  pub_detections_ = this->create_publisher<vision_msgs::msg::Detection3DArray>("basket_objects", make_qos(detections_pub_reliability_, 10));
+  pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("basket_debug_cloud", make_qos(debug_pub_reliability_, 10));
+
+  RCLCPP_INFO(this->get_logger(), "detections pub reliability: %s", detections_pub_reliability_.c_str());
+  RCLCPP_INFO(this->get_logger(), "debug pub reliability: %s", debug_pub_reliability_.c_str());
+
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
   return CallbackReturn::SUCCESS;
@@ -82,14 +102,20 @@ BasketDetectionComponent::CallbackReturn BasketDetectionComponent::on_activate(c
   pub_detections_->on_activate();
   pub_debug_cloud_->on_activate();
 
-  auto qos = rclcpp::SensorDataQoS();
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable" ? RMW_QOS_POLICY_RELIABILITY_RELIABLE : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
+
   std::string input_topic = this->get_parameter("input_topic").as_string();
-  
+  RCLCPP_INFO(this->get_logger(), "cloud subscription reliability: %s", cloud_reliability_.c_str());
+
   rclcpp::SubscriptionOptions sub_options;
   sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
 
   sub_filtered_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    input_topic, qos,
+    input_topic, make_qos(cloud_reliability_, 10),
     std::bind(&BasketDetectionComponent::cloudCallback, this, std::placeholders::_1),
     sub_options);
 
@@ -245,7 +271,7 @@ void BasketDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud2
     vision_msgs::msg::Detection3D det;
     det.header = msg->header;
     det.bbox = box;
-    det.id = "basket_" + std::to_string(basket_count);
+    det.id = params_.detection_id_prefix + "_" + std::to_string(basket_count);
     
     vision_msgs::msg::ObjectHypothesisWithPose hyp;
     hyp.pose.pose = det.bbox.center;

@@ -1,7 +1,10 @@
 /**/preprocessor_laundry:
   ros__parameters:
-    input_topic: "/sobit_home/head_camera/depth/points"
-    output_topic: "/cloud_filtered"
+    input_topic: "head_camera/depth/points"
+    # Private topic ("~/...") expands to <node_name>/filtered_cloud, i.e.
+    # /sobit_home/preprocessor_laundry/filtered_cloud. Namespacing under the
+    # node name avoids colliding with moveit's /sobit_home/filtered_cloud.
+    output_topic: "~/filtered_cloud"
     base_frame: "base_footprint"
     voxel_leaf_size: 0.02
     
@@ -12,3 +15,11 @@
     y_max: 0.8
     z_min: 0.1
     z_max: 1.5
+
+    # QoS reliability ("reliable" or "best_effort").
+    #   input_reliability  : raw camera cloud subscription. The Gazebo sim head
+    #     camera publishes RELIABLE, so this is "reliable" to match. Use
+    #     "best_effort" for a real depth sensor that publishes BEST_EFFORT.
+    #   output_reliability : filtered cloud publisher consumed by detectors.
+    input_reliability: "reliable"
+    output_reliability: "reliable"

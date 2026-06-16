@@ -14,6 +14,9 @@ LineDetectionComponent::LineDetectionComponent(const rclcpp::NodeOptions & optio
   this->declare_parameter<double>("distance_threshold", 0.02);
   this->declare_parameter<double>("probability", 0.95);
   this->declare_parameter<int>("ransac_max_iterations", 1000);
+  this->declare_parameter<std::string>("scan_reliability", "best_effort");
+  this->declare_parameter<std::string>("line_cloud_pub_reliability", "best_effort");
+  this->declare_parameter<std::string>("line_pose_pub_reliability", "reliable");
 }
 
 LineDetectionComponent::CallbackReturn LineDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
@@ -27,6 +30,9 @@ LineDetectionComponent::CallbackReturn LineDetectionComponent::on_configure(cons
   params_.distance_threshold = this->get_parameter("distance_threshold").as_double();
   params_.probability = this->get_parameter("probability").as_double();
   params_.ransac_max_iterations = this->get_parameter("ransac_max_iterations").as_int();
+  scan_reliability_ = this->get_parameter("scan_reliability").as_string();
+  line_cloud_pub_reliability_ = this->get_parameter("line_cloud_pub_reliability").as_string();
+  line_pose_pub_reliability_ = this->get_parameter("line_pose_pub_reliability").as_string();
 
   // Log Parameters
   RCLCPP_INFO(this->get_logger(), "Parameters Loaded:");
@@ -38,6 +44,10 @@ LineDetectionComponent::CallbackReturn LineDetectionComponent::on_configure(cons
   RCLCPP_INFO(this->get_logger(), "Distance Threshold: %f", params_.distance_threshold);
   RCLCPP_INFO(this->get_logger(), "Probability: %f", params_.probability);
   RCLCPP_INFO(this->get_logger(), "Max RANSAC Iterations: %d", params_.ransac_max_iterations);
+  RCLCPP_INFO(this->get_logger(), "QoS Reliability:");
+  RCLCPP_INFO(this->get_logger(), "  scan: %s", scan_reliability_.c_str());
+  RCLCPP_INFO(this->get_logger(), "  line_cloud pub: %s", line_cloud_pub_reliability_.c_str());
+  RCLCPP_INFO(this->get_logger(), "  line_pose pub: %s", line_pose_pub_reliability_.c_str());
 
   // Allocate PCL Memory
   cloud_raw_ = std::make_shared<PointCloud>();
@@ -50,9 +60,17 @@ LineDetectionComponent::CallbackReturn LineDetectionComponent::on_configure(cons
   seg_.setMaxIterations(params_.ransac_max_iterations);
 
   // Create Lifecycle Publishers
-  auto qos = rclcpp::SensorDataQoS();
-  pub_line_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("line_cloud", qos);
-  pub_line_pose_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("line_pose", 10);
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable"
+      ? RMW_QOS_POLICY_RELIABILITY_RELIABLE
+      : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
+  pub_line_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
+    "line_cloud", make_qos(line_cloud_pub_reliability_, 10));
+  pub_line_pose_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
+    "line_pose", make_qos(line_pose_pub_reliability_, 10));
 
   return CallbackReturn::SUCCESS;
 }
@@ -65,15 +83,22 @@ LineDetectionComponent::CallbackReturn LineDetectionComponent::on_activate(const
   pub_line_pose_->on_activate();
 
   // Start Data Flow via Subscription
-  auto qos = rclcpp::SensorDataQoS();
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable"
+      ? RMW_QOS_POLICY_RELIABILITY_RELIABLE
+      : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
   std::string input_topic = this->get_parameter("input_topic").as_string();
+  RCLCPP_INFO(this->get_logger(), "scan QoS reliability: %s", scan_reliability_.c_str());
 
   // Enable IPC explicitly for the subscriber
   rclcpp::SubscriptionOptions sub_options;
   sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
 
   sub_scan_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-    input_topic, qos,
+    input_topic, make_qos(scan_reliability_, 10),
     std::bind(&LineDetectionComponent::scanCallback, this, std::placeholders::_1),
     sub_options);
 

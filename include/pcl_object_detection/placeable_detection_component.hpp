@@ -59,7 +59,8 @@ private:
   PointCloud::Ptr cloud_table_zone_;
   PointCloud::Ptr cloud_plane_;
   PointCloud::Ptr cloud_obstacles_;
-  
+  PointCloud::Ptr cloud_placeable_;  // grid spots that pass the clearance gate (debug view)
+
   pcl::SACSegmentation<PointT> seg_;
   pcl::ExtractIndices<PointT> extract_;
   pcl::search::KdTree<PointT>::Ptr tree_;
@@ -82,6 +83,11 @@ private:
     double plane_dist_threshold;
     int ransac_max_iterations;
   } params_;
+
+  // QoS reliability settings
+  std::string cloud_reliability_;
+  std::string detections_pub_reliability_;
+  std::string debug_pub_reliability_;
 
   // Pre-allocated message container
   vision_msgs::msg::Detection3DArray detection_msg_;

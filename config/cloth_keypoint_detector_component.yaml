@@ -1,0 +1,42 @@
+/**/cloth_keypoint_detector:
+  ros__parameters:
+    # Input: clustered cloth point cloud from mask_to_3d (already in base_footprint)
+    cloud_topic: "mask_to_3d/object_3d_cloud"
+    base_frame: "base_footprint"
+
+    # How far above the top surface of the cloth to place the grasp points (metres).
+    # Lifts the gripper target off the table surface so fingers contact cloth, not table.
+    z_grasp_offset: 0.015
+
+    # Minimum number of points in the cloud to accept a detection.
+    # Rejects spurious small patches (noise, partial occlusion).
+    min_points: 50
+
+    # How often to re-estimate and broadcast the keypoint TFs (Hz).
+    publish_hz: 5.0
+
+    # Which half of the shirt to place the fold column on ("right" or "left").
+    fold_side: "right"
+
+    # Fraction of shirt width to inset from each edge before computing the fold column.
+    # Removes sleeve area from the minor-axis extent (sleeves inflate the cloud width).
+    sleeve_inset_fraction: 0.15
+
+    # Percentile (0-50) for PB/PC along the shirt length axis.
+    # PB placed at (100 - edge_percentile)th percentile (near far edge),
+    # PC placed at edge_percentile-th percentile (near near edge).
+    # Higher value = further from edge = more conservative.
+    edge_percentile: 2.0
+
+    # Fraction of shirt width used as ±band around col_y when scanning for PB/PC X extent.
+    # Scales with shirt size (min clamped to 3 cm). 0.25 = ±25% of shirt width.
+    col_band_fraction: 0.25
+
+    # QoS reliability for the cloud subscriber: "reliable" or "best_effort".
+    # Use "reliable" if the publisher guarantees delivery (e.g. mask_to_3d in sim).
+    # Use "best_effort" for real sensor streams (depth camera point clouds).
+    cloud_reliability: "reliable"
+
+    # QoS reliability for the debug cloud publisher: "reliable" or "best_effort".
+    # Debug/visualization output — "best_effort" is fine (RViz tolerates drops).
+    debug_pub_reliability: "best_effort"

@@ -39,13 +39,17 @@ LaundryDetectionComponent::LaundryDetectionComponent(const rclcpp::NodeOptions &
   params_.cluster_min_size = this->declare_parameter<int>("cluster_min_size", 50);
 
   params_.base_frame = this->declare_parameter<std::string>("base_frame", "base_footprint");
-  params_.input_topic = this->declare_parameter<std::string>("input_topic", "cloud_filtered");
+  params_.input_topic = this->declare_parameter<std::string>("input_topic", "filtered_cloud");
   params_.min_machine_depth = this->declare_parameter<double>("min_machine_depth", 1.0);
   params_.drum_margin_front = this->declare_parameter<double>("drum_margin_front", 0.04);
   params_.drum_margin_back = this->declare_parameter<double>("drum_margin_back", 0.04);
   params_.min_laundry_depth = this->declare_parameter<double>("min_laundry_depth", 0.10);
   params_.smoothing_alpha = this->declare_parameter<double>("smoothing_alpha", 0.4);
   params_.voxel_size = this->declare_parameter<double>("voxel_size", 0.02);
+
+  params_.cloud_reliability = this->declare_parameter<std::string>("cloud_reliability", "best_effort");
+  params_.drum_pub_reliability = this->declare_parameter<std::string>("drum_pub_reliability", "best_effort");
+  params_.laundry_pub_reliability = this->declare_parameter<std::string>("laundry_pub_reliability", "best_effort");
 
   cloud_raw_ = std::make_shared<PointCloud>();
   cloud_roi_ = std::make_shared<PointCloud>();
@@ -109,16 +113,24 @@ LaundryDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
       return result;
     });
 
-  auto qos_reliable = rclcpp::QoS(10);
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable"
+      ? RMW_QOS_POLICY_RELIABILITY_RELIABLE
+      : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
 
   last_process_time_ = this->get_clock()->now();
   sub_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    params_.input_topic, qos_reliable,
+    params_.input_topic, make_qos(params_.cloud_reliability, 10),
     std::bind(&LaundryDetectionComponent::cloudCallback, this, std::placeholders::_1));
 
-  pub_drum_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("drum_debug_cloud", qos_reliable);
-  pub_laundry_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("laundry_debug_cloud", qos_reliable);
+  pub_drum_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("drum_debug_cloud", make_qos(params_.drum_pub_reliability, 10));
+  pub_laundry_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("laundry_debug_cloud", make_qos(params_.laundry_pub_reliability, 10));
 
+  RCLCPP_INFO(this->get_logger(), "QoS reliability — cloud: %s, drum_pub: %s, laundry_pub: %s",
+    params_.cloud_reliability.c_str(), params_.drum_pub_reliability.c_str(), params_.laundry_pub_reliability.c_str());
   RCLCPP_INFO(this->get_logger(), "Configured LaundryDetectionComponent");
   return CallbackReturn::SUCCESS;
 }

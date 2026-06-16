@@ -67,6 +67,10 @@ private:
   pcl::ExtractIndices<PointT> extract_;
 
   // Parameters
+  std::string cloud_reliability_;
+  std::string detections_pub_reliability_;
+  std::string debug_pub_reliability_;
+
   struct {
     std::string base_frame;
 

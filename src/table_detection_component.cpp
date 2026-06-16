@@ -8,7 +8,7 @@ namespace pcl_object_detection {
 
 TableDetectionComponent::TableDetectionComponent(const rclcpp::NodeOptions & options)
 : rclcpp_lifecycle::LifecycleNode("table_detection", options) {
-  this->declare_parameter<std::string>("input_topic", "cloud_filtered");
+  this->declare_parameter<std::string>("input_topic", "filtered_cloud");
   this->declare_parameter<std::string>("base_frame", "base_footprint");
   this->declare_parameter<double>("table_height_min", 0.5);
   this->declare_parameter<double>("table_height_max", 1.2);
@@ -24,6 +24,10 @@ TableDetectionComponent::TableDetectionComponent(const rclcpp::NodeOptions & opt
   this->declare_parameter<double>("object_size_y_max", 0.30);
   this->declare_parameter<double>("object_size_z_min", 0.02);
   this->declare_parameter<double>("object_size_z_max", 0.40);
+
+  this->declare_parameter<std::string>("cloud_reliability", "best_effort");
+  this->declare_parameter<std::string>("detections_pub_reliability", "reliable");
+  this->declare_parameter<std::string>("debug_pub_reliability", "best_effort");
 }
 
 TableDetectionComponent::CallbackReturn TableDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
@@ -45,6 +49,10 @@ TableDetectionComponent::CallbackReturn TableDetectionComponent::on_configure(co
   params_.obj_y_max = this->get_parameter("object_size_y_max").as_double();
   params_.obj_z_min = this->get_parameter("object_size_z_min").as_double();
   params_.obj_z_max = this->get_parameter("object_size_z_max").as_double();
+
+  cloud_reliability_ = this->get_parameter("cloud_reliability").as_string();
+  detections_pub_reliability_ = this->get_parameter("detections_pub_reliability").as_string();
+  debug_pub_reliability_ = this->get_parameter("debug_pub_reliability").as_string();
 
   // Log Parameters
   RCLCPP_INFO(this->get_logger(), "Parameters Loaded:");
@@ -76,9 +84,19 @@ TableDetectionComponent::CallbackReturn TableDetectionComponent::on_configure(co
   ec_.setSearchMethod(tree_);
 
   // Create Publishers and TF Broadcaster
-  auto qos = rclcpp::SensorDataQoS();
-  pub_detections_ = this->create_publisher<vision_msgs::msg::Detection3DArray>("table_objects", 10);
-  pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("table_debug_cloud", qos);
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable" ? RMW_QOS_POLICY_RELIABILITY_RELIABLE : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
+
+  RCLCPP_INFO(this->get_logger(), "Detections Pub Reliability: %s", detections_pub_reliability_.c_str());
+  RCLCPP_INFO(this->get_logger(), "Debug Pub Reliability: %s", debug_pub_reliability_.c_str());
+
+  pub_detections_ = this->create_publisher<vision_msgs::msg::Detection3DArray>(
+    "table_objects", make_qos(detections_pub_reliability_, 10));
+  pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
+    "table_debug_cloud", make_qos(debug_pub_reliability_, 10));
   
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
@@ -93,15 +111,19 @@ TableDetectionComponent::CallbackReturn TableDetectionComponent::on_activate(con
   pub_debug_cloud_->on_activate();
 
   // Start Data Flow via Subscription
-  auto qos = rclcpp::SensorDataQoS();
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable" ? RMW_QOS_POLICY_RELIABILITY_RELIABLE : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
   std::string input_topic = this->get_parameter("input_topic").as_string();
-  
+
   // Enable IPC explicitly for the subscriber
   rclcpp::SubscriptionOptions sub_options;
   sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
 
   sub_filtered_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    input_topic, qos,
+    input_topic, make_qos(cloud_reliability_, 10),
     std::bind(&TableDetectionComponent::cloudCallback, this, std::placeholders::_1),
     sub_options);
 

@@ -6,7 +6,7 @@ namespace pcl_object_detection {
 
 ShelfDetectionComponent::ShelfDetectionComponent(const rclcpp::NodeOptions & options)
 : rclcpp_lifecycle::LifecycleNode("shelf_detection", options) {
-  this->declare_parameter<std::string>("input_topic", "cloud_filtered");
+  this->declare_parameter<std::string>("input_topic", "filtered_cloud");
   this->declare_parameter<std::string>("base_frame", "base_footprint");
   
   this->declare_parameter<double>("shelf_x_min", 0.5);
@@ -30,6 +30,10 @@ ShelfDetectionComponent::ShelfDetectionComponent(const rclcpp::NodeOptions & opt
   this->declare_parameter<double>("object_size_y_max", 0.30);
   this->declare_parameter<double>("object_size_z_min", 0.02);
   this->declare_parameter<double>("object_size_z_max", 0.30);
+
+  this->declare_parameter<std::string>("cloud_reliability", "best_effort");
+  this->declare_parameter<std::string>("detections_pub_reliability", "reliable");
+  this->declare_parameter<std::string>("debug_pub_reliability", "best_effort");
 }
 
 ShelfDetectionComponent::CallbackReturn ShelfDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
@@ -91,10 +95,25 @@ ShelfDetectionComponent::CallbackReturn ShelfDetectionComponent::on_configure(co
   seg_.setMaxIterations(params_.ransac_max_iterations);
   ec_.setSearchMethod(tree_);
 
+  // Read QoS Reliability Parameters
+  cloud_reliability_ = this->get_parameter("cloud_reliability").as_string();
+  detections_pub_reliability_ = this->get_parameter("detections_pub_reliability").as_string();
+  debug_pub_reliability_ = this->get_parameter("debug_pub_reliability").as_string();
+
+  RCLCPP_INFO(this->get_logger(), "QoS Reliability:");
+  RCLCPP_INFO(this->get_logger(), "  Cloud Sub: %s", cloud_reliability_.c_str());
+  RCLCPP_INFO(this->get_logger(), "  Detections Pub: %s", detections_pub_reliability_.c_str());
+  RCLCPP_INFO(this->get_logger(), "  Debug Pub: %s", debug_pub_reliability_.c_str());
+
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable" ? RMW_QOS_POLICY_RELIABILITY_RELIABLE : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
+
   // Create Publishers and TF Broadcaster
-  auto qos = rclcpp::SensorDataQoS();
-  pub_detections_ = this->create_publisher<vision_msgs::msg::Detection3DArray>("shelf_objects", 10);
-  pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("shelf_debug_cloud", qos);
+  pub_detections_ = this->create_publisher<vision_msgs::msg::Detection3DArray>("shelf_objects", make_qos(detections_pub_reliability_, 10));
+  pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("shelf_debug_cloud", make_qos(debug_pub_reliability_, 10));
 
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
@@ -107,14 +126,18 @@ ShelfDetectionComponent::CallbackReturn ShelfDetectionComponent::on_activate(con
   pub_detections_->on_activate();
   pub_debug_cloud_->on_activate();
 
-  auto qos = rclcpp::SensorDataQoS();
+  auto make_qos = [](const std::string & reliability, size_t depth) -> rclcpp::QoS {
+    auto q = rclcpp::QoS(rclcpp::KeepLast(depth));
+    q.reliability(reliability == "reliable" ? RMW_QOS_POLICY_RELIABILITY_RELIABLE : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    return q;
+  };
   std::string input_topic = this->get_parameter("input_topic").as_string();
 
   rclcpp::SubscriptionOptions sub_options;
   sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
 
   sub_filtered_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    input_topic, qos,
+    input_topic, make_qos(cloud_reliability_, 10),
     std::bind(&ShelfDetectionComponent::cloudCallback, this, std::placeholders::_1),
     sub_options);
 

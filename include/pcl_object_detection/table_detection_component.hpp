@@ -89,6 +89,11 @@ private:
     double obj_z_min, obj_z_max;
   } params_;
 
+  // QoS reliability settings
+  std::string cloud_reliability_;
+  std::string detections_pub_reliability_;
+  std::string debug_pub_reliability_;
+
   // Pre-allocated message container
   vision_msgs::msg::Detection3DArray detection_msg_;
 };

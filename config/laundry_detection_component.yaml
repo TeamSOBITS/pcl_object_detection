@@ -1,7 +1,7 @@
 /**/laundry_detection:
   ros__parameters:
     # Input point cloud topic (provided by the preprocessor node).
-    input_topic: "/cloud_filtered"
+    input_topic: "preprocessor_laundry/filtered_cloud"
     base_frame: "base_footprint"
 
     # ---------------------------------------------------------------------------
@@ -150,3 +150,14 @@
     #     always uses the raw centroid as the starting point.
     # ---------------------------------------------------------------------------
     smoothing_alpha: 0.4        # EMA weight for new centroid (0.0–1.0)
+
+    # ---------------------------------------------------------------------------
+    # QoS RELIABILITY ("reliable" or "best_effort")
+    #   cloud_reliability       : subscription to the filtered input cloud. Must
+    #     match the preprocessor's output_reliability. Default "best_effort".
+    #   drum_pub_reliability    : debug drum cloud publisher (visualization).
+    #   laundry_pub_reliability : debug laundry cloud publisher (visualization).
+    # ---------------------------------------------------------------------------
+    cloud_reliability: "best_effort"
+    drum_pub_reliability: "best_effort"
+    laundry_pub_reliability: "best_effort"

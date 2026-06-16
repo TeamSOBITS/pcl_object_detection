@@ -76,6 +76,11 @@ private:
 
     int ransac_max_iterations;
   } params_;
+
+  // QoS Reliability Config
+  std::string scan_reliability_;
+  std::string line_cloud_pub_reliability_;
+  std::string line_pose_pub_reliability_;
 };
 
 }  // namespace pcl_object_detection

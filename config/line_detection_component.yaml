@@ -12,3 +12,13 @@
 
     # RANSAC Parameters
     ransac_max_iterations: 100
+
+    # QoS reliability ("reliable" or "best_effort").
+    #   scan_reliability         : LaserScan subscription. Real LiDAR drivers
+    #     typically publish "best_effort"; use "reliable" for replayed scans.
+    #   line_cloud_pub_reliability: debug line cloud publisher (visualization).
+    #   line_pose_pub_reliability : detected line pose publisher. Keep "reliable"
+    #     so downstream consumers do not miss the pose.
+    scan_reliability: "best_effort"
+    line_cloud_pub_reliability: "best_effort"
+    line_pose_pub_reliability: "reliable"
