@@ -89,6 +89,9 @@ private:
     // Cloth detection parameters
     bool cloth_detection_enabled;
     double cloth_inner_margin; // Padding from walls to define 'inside' the basket
+
+    // Frame/id prefix for emitted detection + TF frames.
+    std::string detection_id_prefix;
   } params_;
 
   // QoS reliability settings

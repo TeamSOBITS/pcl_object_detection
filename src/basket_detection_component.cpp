@@ -29,6 +29,8 @@ BasketDetectionComponent::BasketDetectionComponent(const rclcpp::NodeOptions & o
   this->declare_parameter<bool>("cloth_detection_enabled", true);
   this->declare_parameter<double>("cloth_inner_margin", 0.08);
 
+  this->declare_parameter<std::string>("detection_id_prefix", "basket");
+
   this->declare_parameter<std::string>("cloud_reliability", "best_effort");
   this->declare_parameter<std::string>("detections_pub_reliability", "reliable");
   this->declare_parameter<std::string>("debug_pub_reliability", "best_effort");
@@ -56,6 +58,8 @@ BasketDetectionComponent::CallbackReturn BasketDetectionComponent::on_configure(
 
     params_.cloth_detection_enabled = this->get_parameter("cloth_detection_enabled").as_bool();
     params_.cloth_inner_margin = this->get_parameter("cloth_inner_margin").as_double();
+
+    params_.detection_id_prefix = this->get_parameter("detection_id_prefix").as_string();
 
     cloud_reliability_ = this->get_parameter("cloud_reliability").as_string();
     detections_pub_reliability_ = this->get_parameter("detections_pub_reliability").as_string();
@@ -267,7 +271,7 @@ void BasketDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud2
     vision_msgs::msg::Detection3D det;
     det.header = msg->header;
     det.bbox = box;
-    det.id = "basket_" + std::to_string(basket_count);
+    det.id = params_.detection_id_prefix + "_" + std::to_string(basket_count);
     
     vision_msgs::msg::ObjectHypothesisWithPose hyp;
     hyp.pose.pose = det.bbox.center;
