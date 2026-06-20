@@ -7,6 +7,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
 
+
 def generate_launch_description():
     pkg_share = get_package_share_directory('pcl_object_detection')
 
@@ -89,96 +90,48 @@ def generate_launch_description():
         default_value="",
     )
 
-    container = ComposableNodeContainer(
-        name='pcl_detection_container',
-        namespace=namespace,
-        package='rclcpp_components',
-        executable='component_container_mt',
-        composable_node_descriptions=[
-            # PreProcessor (Standard Component, always running)
-            ComposableNode(
-                package='pcl_object_detection',
-                plugin='pcl_object_detection::PreProcessorComponent',
-                name='preprocessor',
-                namespace=namespace,
-                parameters=[preprocessor_config, {'use_sim_time': use_sim_time}],
-                extra_arguments=[{'use_intra_process_comms': True}]
-            ),
-            # Table Detection Worker
-            ComposableNode(
-                package='pcl_object_detection',
-                plugin='pcl_object_detection::TableDetectionComponent',
-                name='table_detection',
-                namespace=namespace,
-                parameters=[table_config, {'use_sim_time': use_sim_time}],
-                extra_arguments=[{'use_intra_process_comms': True}]
-            ),
-            # Floor Detection Worker
-            ComposableNode(
-                package='pcl_object_detection',
-                plugin='pcl_object_detection::FloorDetectionComponent',
-                name='floor_detection',
-                namespace=namespace,
-                parameters=[floor_config, {'use_sim_time': use_sim_time}],
-                extra_arguments=[{'use_intra_process_comms': True}]
-            ),
-            # Shelf Detection Worker
-            ComposableNode(
-                package='pcl_object_detection',
-                plugin='pcl_object_detection::ShelfDetectionComponent',
-                name='shelf_detection',
-                namespace=namespace,
-                parameters=[shelf_config, {'use_sim_time': use_sim_time}],
-                extra_arguments=[{'use_intra_process_comms': True}]
-            ),
-            # Placeable Detection Worker
-            ComposableNode(
-                package='pcl_object_detection',
-                plugin='pcl_object_detection::PlaceableDetectionComponent',
-                name='placeable_detection',
-                namespace=namespace,
-                parameters=[placeable_config, {'use_sim_time': use_sim_time}],
-                extra_arguments=[{'use_intra_process_comms': True}]
-            ),
-            # Line Detection Worker
-            ComposableNode(
-                package='pcl_object_detection',
-                plugin='pcl_object_detection::LineDetectionComponent',
-                name='line_detection',
-                namespace=namespace,
-                parameters=[line_config, {'use_sim_time': use_sim_time}],
-                extra_arguments=[{'use_intra_process_comms': True}]
-            ),
-            # Basket Detection Worker
-            ComposableNode(
-                package='pcl_object_detection',
-                plugin='pcl_object_detection::BasketDetectionComponent',
-                name='basket_detection',
-                namespace=namespace,
-                parameters=[basket_config, {'use_sim_time': use_sim_time}],
-                extra_arguments=[{'use_intra_process_comms': True}]
-            ),
-            # Washing Machine Detection Worker
-            ComposableNode(
-                package='pcl_object_detection',
-                plugin='pcl_object_detection::WashingMachineDetectionComponent',
-                name='washing_machine_detection',
-                namespace=namespace,
-                parameters=[washing_machine_config, {'use_sim_time': use_sim_time}],
-                extra_arguments=[{'use_intra_process_comms': True}]
-            ),
-            # Laundry Detection Worker
-            ComposableNode(
-                package='pcl_object_detection',
-                plugin='pcl_object_detection::LaundryDetectionComponent',
-                name='laundry_detection',
-                namespace=namespace,
-                parameters=[laundry_config, {'use_sim_time': use_sim_time}],
-                extra_arguments=[{'use_intra_process_comms': True}]
-            ),
-        ],
-        output='screen',
-    )
+    # ── One component_container_mt PER node (separate processes) ──────────────
+    # Isolating each node in its own container + executor makes every lifecycle
+    # subscription get serviced.
+    def make_container(node_name, plugin, config):
+        return ComposableNodeContainer(
+            name=f'{node_name}_container',
+            namespace=namespace,
+            package='rclcpp_components',
+            executable='component_container_mt',
+            composable_node_descriptions=[
+                ComposableNode(
+                    package='pcl_object_detection',
+                    plugin=plugin,
+                    name=node_name,
+                    namespace=namespace,
+                    parameters=[config, {'use_sim_time': use_sim_time}],
+                    extra_arguments=[{'use_intra_process_comms': False}],
+                ),
+            ],
+            output='screen',
+        )
+
+    containers = [
+        make_container('preprocessor',
+                       'pcl_object_detection::PreProcessorComponent', preprocessor_config),
+        make_container('table_detection',
+                       'pcl_object_detection::TableDetectionComponent', table_config),
+        make_container('floor_detection',
+                       'pcl_object_detection::FloorDetectionComponent', floor_config),
+        make_container('shelf_detection',
+                       'pcl_object_detection::ShelfDetectionComponent', shelf_config),
+        make_container('placeable_detection',
+                       'pcl_object_detection::PlaceableDetectionComponent', placeable_config),
+        make_container('line_detection',
+                       'pcl_object_detection::LineDetectionComponent', line_config),
+        make_container('basket_detection',
+                       'pcl_object_detection::BasketDetectionComponent', basket_config),
+        make_container('washing_machine_detection',
+                       'pcl_object_detection::WashingMachineDetectionComponent', washing_machine_config),
+        make_container('laundry_detection',
+                       'pcl_object_detection::LaundryDetectionComponent', laundry_config),
+    ]
 
     return LaunchDescription([
         preprocessor_config_arg,
@@ -192,5 +145,5 @@ def generate_launch_description():
         laundry_config_arg,
         use_sim_time_arg,
         namespace_cmd,
-        container,
+        *containers,
     ])
