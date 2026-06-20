@@ -49,6 +49,9 @@ private:
   void scanCallback(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg);
 
   // ROS 2 Communication
+  // Dedicated callback group so the executor reliably services the
+  // subscription created during a lifecycle transition (see .cpp).
+  rclcpp::CallbackGroup::SharedPtr cb_group_;
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr sub_scan_;
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>> pub_line_cloud_;
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::PoseStamped>> pub_line_pose_;

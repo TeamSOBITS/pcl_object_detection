@@ -123,17 +123,13 @@ LaundryDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
   };
 
   last_process_time_ = this->get_clock()->now();
-  // Explicit reentrant callback group so the cloud subscription is reliably
-  // serviced by the component container's multithreaded executor (see header).
   cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-  // Create the cloud subscription HERE in on_configure, NOT in on_activate.
-  // Adding a subscription to a node that the component container's executor is
-  // ALREADY spinning does not rebuild the executor's wait set, so the callback
-  // never fires. Creating it during configure (before the container starts
-  // servicing this node) gets it collected into the wait set. We gate actual
-  // processing on the lifecycle state instead (cloudCallback returns early
-  // unless active), so no clouds are processed while inactive.
+  // Create the subscription in on_configure (not on_activate) on a dedicated
+  // callback group: adding a sub to a node the container's executor is already
+  // spinning won't rebuild its wait set, so the callback never fires. Doing it
+  // here gets it collected; cloudCallback gates on ACTIVE so nothing runs while
+  // inactive.
   {
     rclcpp::SubscriptionOptions sub_opts;
     sub_opts.callback_group = cb_group_;
@@ -207,8 +203,7 @@ void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud
   }
   last_process_time_ = start_time;
 
-  // Helper: re-publish the last known good TF so the frame doesn't expire in the
-  // TF buffer during frames where the pipeline fails partway through.
+  // Re-publish the last good TF so it doesn't expire when a frame fails partway.
   auto republish_last_known = [&]() {
     if (!smoothed_centroid_initialized_) return;
     geometry_msgs::msg::TransformStamped t;
@@ -222,7 +217,7 @@ void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud
     tf_broadcaster_->sendTransform(t);
   };
 
-  // 1.5 Convert to PCL into a local cloud to avoid data races between callbacks.
+  // Convert to PCL into a local cloud to avoid data races between callbacks.
   PointCloud::Ptr cloud_roi(new PointCloud);
   pcl::fromROSMsg(*msg, *cloud_roi);
   if (cloud_roi->empty()) { republish_last_known(); return; }
@@ -334,12 +329,8 @@ void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud
   drum_rot.col(2) = z_axis;
   geometry_msgs::msg::Quaternion drum_quat = tf2::toMsg(Eigen::Quaterniond(drum_rot));
 
-  // Entrance center: use the RANSAC circle center (`center`) — it estimates the
-  // true geometric center of the opening from the rim arc, so it is NOT biased
-  // toward whichever arc the (downward-pitched) camera happens to see. The raw
-  // estimate is jittery frame-to-frame, so EMA-smooth it to damp bad frames.
-  // (The rim-point centroid was tried but sits biased upward, since the camera
-  // sees the upper rim better than the self-occluded lower rim.)
+  // Use the RANSAC circle center (not a rim-point centroid, which biases upward
+  // since the camera sees the upper rim better). EMA-smooth the jittery estimate.
   Eigen::Vector3d entrance = center;
   if (!smoothed_entrance_initialized_) {
     smoothed_entrance_ = entrance;
@@ -349,13 +340,10 @@ void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud
                          (1.0 - params_.smoothing_alpha) * smoothed_entrance_;
   }
 
-  // Broadcast the drum entrance every frame a circle is found, independent of
-  // whether laundry is detected inside — lets the FSM aim at the opening even
-  // when the drum is empty.
-  // NOTE: this is an APPROACH aid, not a metrically exact opening pose. RANSAC
-  // tends to fit a slightly oversized circle (porthole blends into the flat
-  // face), so the centre sits ~0.15 m above the true drum centre. Use it for
-  // approach direction; rely on laundry_item for the actual grasp target.
+  // Broadcast drum_entrance whenever a circle is found (even if the drum is
+  // empty) so the FSM can aim at the opening. This is an APPROACH aid only:
+  // RANSAC over-fits the porthole, so the centre sits ~0.15 m high. Use
+  // laundry_item for the actual grasp target.
   {
     geometry_msgs::msg::TransformStamped te;
     te.header.stamp = this->get_clock()->now();

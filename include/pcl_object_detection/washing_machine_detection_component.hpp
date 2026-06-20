@@ -46,6 +46,9 @@ private:
   void cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
 
   // ROS 2 Communication
+  // Dedicated callback group so the executor reliably services the
+  // subscription created during a lifecycle transition (see .cpp).
+  rclcpp::CallbackGroup::SharedPtr cb_group_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_;
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>> pub_debug_cloud_;
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;

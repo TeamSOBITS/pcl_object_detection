@@ -72,6 +72,9 @@ private:
     std::string debug_pub_reliability;
   } params_;
 
+  // Dedicated callback group so the executor reliably services the
+  // subscription created during a lifecycle transition (see .cpp).
+  rclcpp::CallbackGroup::SharedPtr cb_group_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_;
   rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_debug_cloud_;
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;

@@ -11,6 +11,7 @@
 
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
+#include <lifecycle_msgs/msg/state.hpp>
 
 namespace pcl_object_detection {
 
@@ -65,9 +66,17 @@ WashingMachineDetectionComponent::on_configure(const rclcpp_lifecycle::State &) 
   };
 
   std::string input_topic = this->declare_parameter<std::string>("input_topic", "filtered_cloud");
+
+  // Explicit callback group so the executor reliably services this
+  // subscription (created during a lifecycle transition in a shared container).
+  cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  rclcpp::SubscriptionOptions sub_options;
+  sub_options.callback_group = cb_group_;
+
   sub_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
     input_topic, make_qos(params_.cloud_reliability, 10),
-    std::bind(&WashingMachineDetectionComponent::cloudCallback, this, std::placeholders::_1));
+    std::bind(&WashingMachineDetectionComponent::cloudCallback, this, std::placeholders::_1),
+    sub_options);
 
   pub_debug_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
     "washing_machine_debug_cloud", make_qos(params_.debug_pub_reliability, 10));
@@ -105,6 +114,13 @@ WashingMachineDetectionComponent::on_shutdown(const rclcpp_lifecycle::State &) {
 }
 
 void WashingMachineDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
+  // Subscription is created in on_configure (so the container's executor collects
+  // it), so gate processing on ACTIVE here to honour the lifecycle contract.
+  if (this->get_current_state().id() !=
+      lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
+    return;
+  }
+
   if (pub_debug_cloud_->get_subscription_count() == 0 && !tf_broadcaster_) return;
 
   // 1. Convert to PCL

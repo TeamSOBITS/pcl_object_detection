@@ -97,9 +97,19 @@ ClothKeypointDetectorComponent::on_activate(const rclcpp_lifecycle::State &)
     ? RMW_QOS_POLICY_RELIABILITY_RELIABLE
     : RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
   auto qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliability(reliability);
+
+  // Explicit callback group so the executor reliably services this
+  // subscription (created during a lifecycle transition in a shared container).
+  if (!cb_group_) {
+    cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  }
+  rclcpp::SubscriptionOptions sub_options;
+  sub_options.callback_group = cb_group_;
+
   sub_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
     params_.cloud_topic, qos,
-    std::bind(&ClothKeypointDetectorComponent::cloudCallback, this, std::placeholders::_1));
+    std::bind(&ClothKeypointDetectorComponent::cloudCallback, this, std::placeholders::_1),
+    sub_options);
 
   last_process_time_ = this->get_clock()->now();
   RCLCPP_INFO(this->get_logger(), "Activated ClothKeypointDetectorComponent");
@@ -131,13 +141,16 @@ ClothKeypointDetectorComponent::on_shutdown(const rclcpp_lifecycle::State &)
 void ClothKeypointDetectorComponent::cloudCallback(
   const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg)
 {
-  // Throttle to publish_hz
+  // Throttle to publish_hz.
   auto now = this->get_clock()->now();
+  const int64_t period_ns = static_cast<int64_t>(1e9 / params_.publish_hz);
+  // If the throttle baseline and now have different clock sources (SYSTEM vs ROS,
+  // e.g. before use_sim_time syncs), subtracting them throws — back-date the
+  // baseline so this frame processes instead of crashing or being dropped.
   if (last_process_time_.get_clock_type() != now.get_clock_type()) {
-    last_process_time_ = now;
+    last_process_time_ = now - rclcpp::Duration::from_nanoseconds(period_ns + 1);
   }
-  const double period_ns = 1e9 / params_.publish_hz;
-  if ((now - last_process_time_).nanoseconds() < static_cast<int64_t>(period_ns)) {
+  if ((now - last_process_time_).nanoseconds() < period_ns) {
     return;
   }
   last_process_time_ = now;
@@ -202,12 +215,8 @@ void ClothKeypointDetectorComponent::cloudCallback(
   // Band half-width for column sampling: ⅙ of shirt length centred on mid-body.
   const double band_hw  = (pmaj_max - pmaj_min) / 6.0;
 
-  // Compute PB/PC positions from actual X extent of points near the fold column.
-  // edge_percentile is used as a percentile on the column-local X distribution
-  // so outlier fringe points are excluded but the full shirt length is captured.
-  // We do a two-pass approach: first compute col_y (need shirt width), then
-  // find the X range of points within col_y ± half_shirt_width/3.
-  // For now, use global major-axis percentile as before — col-local pass below.
+  // Global major-axis percentile (fallback for PB/PC; column-local pass is below).
+  // edge_percentile excludes outlier fringe points while keeping the shirt length.
   std::vector<double> dmaj_vals;
   dmaj_vals.reserve(cloud->size());
   for (const auto & pt : cloud->points) {
@@ -251,18 +260,10 @@ void ClothKeypointDetectorComponent::cloudCallback(
     ? (body_centre_y + body_y_left)  * 0.5
     : (body_centre_y + body_y_right) * 0.5;
 
-  // Compute the fold column's minor-axis offset from center directly:
-  //   col_y is the desired world Y; the column sits at dmin_col along the minor axis.
-  // dmin_col = dot((col_y_world - centroid), minor_ax)  where col_y_world = (0, col_y)
-  // Then for each major-axis position dmaj, the world point is:
-  //   P = centroid + dmaj * major_ax + dmin_col * minor_ax
-  // This avoids the division-by-zero when minor_ax.y() ≈ 0.
-  // Correct form: project the desired world point (any x, col_y) onto minor_ax:
-  // We want world_y component = col_y, so dmin_col satisfies:
+  // Minor-axis offset placing the column at world Y = col_y:
   //   cy + dmin_col * minor_ax.y() = col_y  →  dmin_col = (col_y - cy) / minor_ax.y()
-  // But if minor_ax.y() ≈ 0, major_ax.y() ≈ ±1, meaning major axis is mostly Y.
-  // In that case the fold column runs along the major axis (X direction), so
-  // use dmin_col = 0 (centred on minor axis) and vary only dmaj.
+  // If minor_ax.y() ≈ 0 the major axis is mostly Y (fold column runs along X),
+  // so centre on the minor axis (dmin_col = 0) and vary only dmaj.
   const double dmin_col_final = (std::abs(minor_ax.y()) > 0.1)
     ? (col_y - cy) / minor_ax.y()
     : 0.0;

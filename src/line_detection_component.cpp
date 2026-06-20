@@ -97,6 +97,13 @@ LineDetectionComponent::CallbackReturn LineDetectionComponent::on_activate(const
   rclcpp::SubscriptionOptions sub_options;
   sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
 
+  // Explicit callback group so the executor reliably services this
+  // subscription (created during a lifecycle transition in a shared container).
+  if (!cb_group_) {
+    cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  }
+  sub_options.callback_group = cb_group_;
+
   sub_scan_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
     input_topic, make_qos(scan_reliability_, 10),
     std::bind(&LineDetectionComponent::scanCallback, this, std::placeholders::_1),

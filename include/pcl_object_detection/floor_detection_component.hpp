@@ -56,6 +56,9 @@ private:
   bool isVerticalStructure(const PointCloud::Ptr& cloud, const pcl::PointIndices& cluster);
 
   // ROS 2 Communication
+  // Dedicated callback group so the executor reliably services the
+  // subscription created during a lifecycle transition (see .cpp).
+  rclcpp::CallbackGroup::SharedPtr cb_group_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_filtered_cloud_;
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<vision_msgs::msg::Detection3DArray>> pub_detections_;
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>> pub_debug_cloud_;
