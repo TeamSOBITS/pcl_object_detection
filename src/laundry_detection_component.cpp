@@ -10,6 +10,7 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <pcl/common/pca.h>
+#include <lifecycle_msgs/msg/state.hpp>
 
 namespace pcl_object_detection {
 
@@ -122,9 +123,25 @@ LaundryDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
   };
 
   last_process_time_ = this->get_clock()->now();
-  sub_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    params_.input_topic, make_qos(params_.cloud_reliability, 10),
-    std::bind(&LaundryDetectionComponent::cloudCallback, this, std::placeholders::_1));
+  // Explicit reentrant callback group so the cloud subscription is reliably
+  // serviced by the component container's multithreaded executor (see header).
+  cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+
+  // Create the cloud subscription HERE in on_configure, NOT in on_activate.
+  // Adding a subscription to a node that the component container's executor is
+  // ALREADY spinning does not rebuild the executor's wait set, so the callback
+  // never fires. Creating it during configure (before the container starts
+  // servicing this node) gets it collected into the wait set. We gate actual
+  // processing on the lifecycle state instead (cloudCallback returns early
+  // unless active), so no clouds are processed while inactive.
+  {
+    rclcpp::SubscriptionOptions sub_opts;
+    sub_opts.callback_group = cb_group_;
+    sub_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+      params_.input_topic, make_qos(params_.cloud_reliability, 10),
+      std::bind(&LaundryDetectionComponent::cloudCallback, this, std::placeholders::_1),
+      sub_opts);
+  }
 
   pub_drum_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("drum_debug_cloud", make_qos(params_.drum_pub_reliability, 10));
   pub_laundry_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("laundry_debug_cloud", make_qos(params_.laundry_pub_reliability, 10));
@@ -135,7 +152,7 @@ LaundryDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
   return CallbackReturn::SUCCESS;
 }
 
-LaundryDetectionComponent::CallbackReturn 
+LaundryDetectionComponent::CallbackReturn
 LaundryDetectionComponent::on_activate(const rclcpp_lifecycle::State &) {
   pub_drum_cloud_->on_activate();
   pub_laundry_cloud_->on_activate();
@@ -149,6 +166,7 @@ LaundryDetectionComponent::on_deactivate(const rclcpp_lifecycle::State &) {
   pub_drum_cloud_->on_deactivate();
   pub_laundry_cloud_->on_deactivate();
   smoothed_centroid_initialized_ = false;
+  smoothed_entrance_initialized_ = false;
   return CallbackReturn::SUCCESS;
 }
 
@@ -167,15 +185,24 @@ LaundryDetectionComponent::on_shutdown(const rclcpp_lifecycle::State &) {
 }
 
 void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
+  // Subscription is created in on_configure (so the container's executor collects
+  // it), so gate processing on ACTIVE here to honour the lifecycle contract.
+  if (this->get_current_state().id() !=
+      lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
+    return;
+  }
+
   auto start_time = this->get_clock()->now();
 
-  // 1. Throttle Processing (~5 Hz / 200 ms)
-  // Reset the baseline if clock sources differ (e.g. sim time not yet synced at startup)
-  // so the very next callback after sync always passes through.
+  // Throttle to ~5 Hz.
+  const int64_t period_ns = static_cast<int64_t>(1e9 / 5.0);
+  // If the throttle baseline and now have different clock sources (SYSTEM vs ROS,
+  // e.g. before use_sim_time syncs), subtracting them throws — back-date the
+  // baseline so this frame processes instead of crashing or being dropped.
   if (last_process_time_.get_clock_type() != start_time.get_clock_type()) {
-    last_process_time_ = start_time;
+    last_process_time_ = start_time - rclcpp::Duration::from_nanoseconds(period_ns + 1);
   }
-  if ((start_time - last_process_time_).nanoseconds() < 200000000) {
+  if ((start_time - last_process_time_).nanoseconds() < period_ns) {
     return;
   }
   last_process_time_ = start_time;
@@ -293,8 +320,53 @@ void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud
   // Ensure drum_dir points away from the robot (into the machine, along +X usually)
   Eigen::Vector3d drum_dir = normal;
   if (drum_dir.x() < 0) drum_dir = -drum_dir;
-  
+
   // Note: the front face normal would be -drum_dir (pointing towards robot)
+
+  // Shared drum-frame orientation (X into drum, Y horizontal along opening, Z up).
+  // Reused for both the drum_entrance and laundry_item frames.
+  Eigen::Vector3d x_axis = drum_dir.normalized();
+  Eigen::Vector3d y_axis = Eigen::Vector3d(0, 0, 1).cross(x_axis).normalized();
+  Eigen::Vector3d z_axis = x_axis.cross(y_axis).normalized();
+  Eigen::Matrix3d drum_rot;
+  drum_rot.col(0) = x_axis;
+  drum_rot.col(1) = y_axis;
+  drum_rot.col(2) = z_axis;
+  geometry_msgs::msg::Quaternion drum_quat = tf2::toMsg(Eigen::Quaterniond(drum_rot));
+
+  // Entrance center: use the RANSAC circle center (`center`) — it estimates the
+  // true geometric center of the opening from the rim arc, so it is NOT biased
+  // toward whichever arc the (downward-pitched) camera happens to see. The raw
+  // estimate is jittery frame-to-frame, so EMA-smooth it to damp bad frames.
+  // (The rim-point centroid was tried but sits biased upward, since the camera
+  // sees the upper rim better than the self-occluded lower rim.)
+  Eigen::Vector3d entrance = center;
+  if (!smoothed_entrance_initialized_) {
+    smoothed_entrance_ = entrance;
+    smoothed_entrance_initialized_ = true;
+  } else {
+    smoothed_entrance_ = params_.smoothing_alpha * entrance +
+                         (1.0 - params_.smoothing_alpha) * smoothed_entrance_;
+  }
+
+  // Broadcast the drum entrance every frame a circle is found, independent of
+  // whether laundry is detected inside — lets the FSM aim at the opening even
+  // when the drum is empty.
+  // NOTE: this is an APPROACH aid, not a metrically exact opening pose. RANSAC
+  // tends to fit a slightly oversized circle (porthole blends into the flat
+  // face), so the centre sits ~0.15 m above the true drum centre. Use it for
+  // approach direction; rely on laundry_item for the actual grasp target.
+  {
+    geometry_msgs::msg::TransformStamped te;
+    te.header.stamp = this->get_clock()->now();
+    te.header.frame_id = msg->header.frame_id;
+    te.child_frame_id = "drum_entrance";
+    te.transform.translation.x = smoothed_entrance_.x();
+    te.transform.translation.y = smoothed_entrance_.y();
+    te.transform.translation.z = smoothed_entrance_.z();
+    te.transform.rotation = drum_quat;
+    tf_broadcaster_->sendTransform(te);
+  }
 
   // 5. Cylindrical Volume Extraction
   cloud_drum_->clear();
@@ -376,24 +448,9 @@ void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud
   t.transform.translation.y = smoothed_centroid_.y();
   t.transform.translation.z = smoothed_centroid_.z();
 
-  // Orientation convention:
-  //   X axis — points from the drum opening toward the laundry (along drum_dir)
-  //   Y axis — horizontal, parallel to the washing machine opening plane
-  //   Z axis — completes the right-hand frame (X × Y), points roughly upward
-  //
-  // We derive from the drum geometry rather than PCA on the laundry cloud because
-  // drum_dir is stable (comes from the fitted plane normal) while PCA on a
-  // messy laundry blob is noisy and orientation-ambiguous.
-  Eigen::Vector3d x_axis = drum_dir.normalized();
-  Eigen::Vector3d world_up(0, 0, 1);
-  Eigen::Vector3d y_axis = world_up.cross(x_axis).normalized(); // horizontal, parallel to opening
-  Eigen::Vector3d z_axis = x_axis.cross(y_axis).normalized();  // points upward
-
-  Eigen::Matrix3d rot;
-  rot.col(0) = x_axis;
-  rot.col(1) = y_axis;
-  rot.col(2) = z_axis;
-  last_known_rotation_ = tf2::toMsg(Eigen::Quaterniond(rot));
+  // Reuse the drum-frame orientation (stable, from the fitted plane normal)
+  // rather than PCA on the messy laundry blob, which is noisy and ambiguous.
+  last_known_rotation_ = drum_quat;
   t.transform.rotation = last_known_rotation_;
 
   tf_broadcaster_->sendTransform(t);

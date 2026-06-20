@@ -65,6 +65,12 @@ private:
   } params_;
 
   // ROS
+  // Dedicated callback group for the cloud subscription. Without an explicit
+  // group, a plain subscription created in on_configure() on a LifecycleNode
+  // running inside a component_container_mt can fail to be added to the
+  // executor's wait set, so its callback never fires even though messages and
+  // QoS are fine. Owning the group guarantees the executor services it.
+  rclcpp::CallbackGroup::SharedPtr cb_group_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_;
   rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_drum_cloud_;
   rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_laundry_cloud_;
@@ -77,6 +83,8 @@ private:
   // EMA smoothing state and last-known TF for keep-alive republishing
   Eigen::Vector3d smoothed_centroid_{0, 0, 0};
   bool smoothed_centroid_initialized_{false};
+  Eigen::Vector3d smoothed_entrance_{0, 0, 0};
+  bool smoothed_entrance_initialized_{false};
   geometry_msgs::msg::Quaternion last_known_rotation_{};
 
   // PCL
