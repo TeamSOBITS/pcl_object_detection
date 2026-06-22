@@ -8,6 +8,9 @@
     place_x_max: 1.0
     place_y_min: -0.5
     place_y_max: 0.5
+    # Generic default z-band (a table surface ~0.3–1.0 m above base). The
+    # challenge-specific tight band that brackets the folding-table top lives in
+    # rc_doinglaundry/config/img/pcl_placeable_detection.yaml (config-ownership).
     place_z_min: 0.3
     place_z_max: 1.0
     
@@ -26,6 +29,6 @@
     #   detections_pub_reliability : detection output publisher. Keep "reliable"
     #     so downstream consumers never miss a detection.
     #   debug_pub_reliability      : debug cloud publisher (visualization).
-    cloud_reliability: "best_effort"
+    cloud_reliability: "reliable"
     detections_pub_reliability: "reliable"
     debug_pub_reliability: "reliable"

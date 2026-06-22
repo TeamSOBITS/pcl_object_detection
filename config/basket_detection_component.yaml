@@ -49,6 +49,6 @@
     #   detections_pub_reliability : detection output publisher. Keep "reliable"
     #     so downstream consumers never miss a detection.
     #   debug_pub_reliability      : debug cloud publisher (visualization).
-    cloud_reliability: "best_effort"
+    cloud_reliability: "reliable"
     detections_pub_reliability: "reliable"
-    debug_pub_reliability: "best_effort"
+    debug_pub_reliability: "reliable"
