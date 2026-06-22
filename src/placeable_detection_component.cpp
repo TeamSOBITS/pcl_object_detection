@@ -27,7 +27,7 @@ PlaceableDetectionComponent::PlaceableDetectionComponent(const rclcpp::NodeOptio
   this->declare_parameter<double>("plane_dist_threshold", 0.02);
   this->declare_parameter<int>("ransac_max_iterations", 200);
 
-  this->declare_parameter<std::string>("cloud_reliability", "best_effort");
+  this->declare_parameter<std::string>("cloud_reliability", "reliable");
   this->declare_parameter<std::string>("detections_pub_reliability", "reliable");
   this->declare_parameter<std::string>("debug_pub_reliability", "reliable");
 }

@@ -22,6 +22,8 @@
 // Project Utils
 #include "pcl_object_detection/point_cloud_utility.hpp"
 
+#include <Eigen/Core>
+
 namespace pcl_object_detection {
 
 /**
@@ -71,7 +73,12 @@ private:
   // Parameters
   struct {
     std::string base_frame;
-  
+
+    // Lateral/forward ROI (base_frame) applied before clustering, to stop the
+    // basket cluster merging with the floor, the washing machine and walls.
+    double roi_x_min, roi_x_max;
+    double roi_y_min, roi_y_max;
+
     // Detection zone (height range from floor)
     double detection_height_min;
     double detection_height_max;
@@ -91,11 +98,22 @@ private:
 
     // Cloth detection parameters
     bool cloth_detection_enabled;
-    double cloth_inner_margin; // Padding from walls to define 'inside' the basket
+    double cloth_inner_margin;     // Padding from walls to define 'inside' the basket
+    double cloth_top_band;         // Take the centroid of points within this depth of
+                                   // the peak (not the single highest point, which
+                                   // jitters badly on a deformable pile)
+    double cloth_smoothing_alpha;  // EMA weight for the cloth pinch point
 
     // Frame/id prefix for emitted detection + TF frames.
     std::string detection_id_prefix;
   } params_;
+
+  // Hot-reload handle for tunable parameters
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_cb_handle_;
+
+  // EMA state for the cloth pinch point
+  Eigen::Vector3d smoothed_cloth_{0, 0, 0};
+  bool smoothed_cloth_initialized_{false};
 
   // QoS reliability settings
   std::string cloud_reliability_;

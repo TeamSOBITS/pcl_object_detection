@@ -16,6 +16,9 @@
 
 #include <Eigen/Core>
 #include <geometry_msgs/msg/quaternion.hpp>
+#include <deque>
+#include <vector>
+#include <algorithm>
 
 #include "pcl_object_detection/point_cloud_utility.hpp"
 
@@ -54,7 +57,13 @@ private:
     double drum_margin_front;
     double drum_margin_back;
     double min_laundry_depth;
-    double smoothing_alpha;
+    double smoothing_alpha;          // EMA weight for the laundry_item centroid
+    double entrance_smoothing_alpha; // EMA weight for drum_entrance (heavier: the
+                                     // RANSAC circle centre jitters in y, and the
+                                     // opening is static during approach)
+    int entrance_median_window;      // sliding-window median size applied to the
+                                     // raw circle centre before the EMA, to reject
+                                     // the broadband ±0.13 m lateral RANSAC jitter
     double voxel_size;
     
     std::string input_topic;
@@ -85,6 +94,7 @@ private:
   bool smoothed_centroid_initialized_{false};
   Eigen::Vector3d smoothed_entrance_{0, 0, 0};
   bool smoothed_entrance_initialized_{false};
+  std::deque<Eigen::Vector3d> entrance_history_;  // raw circle centres for median
   geometry_msgs::msg::Quaternion last_known_rotation_{};
 
   // PCL

@@ -46,6 +46,8 @@ LaundryDetectionComponent::LaundryDetectionComponent(const rclcpp::NodeOptions &
   params_.drum_margin_back = this->declare_parameter<double>("drum_margin_back", 0.04);
   params_.min_laundry_depth = this->declare_parameter<double>("min_laundry_depth", 0.10);
   params_.smoothing_alpha = this->declare_parameter<double>("smoothing_alpha", 0.4);
+  params_.entrance_smoothing_alpha = this->declare_parameter<double>("entrance_smoothing_alpha", 0.1);
+  params_.entrance_median_window = this->declare_parameter<int>("entrance_median_window", 7);
   params_.voxel_size = this->declare_parameter<double>("voxel_size", 0.02);
 
   params_.cloud_reliability = this->declare_parameter<std::string>("cloud_reliability", "best_effort");
@@ -85,6 +87,8 @@ LaundryDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
   this->get_parameter("drum_margin_back", params_.drum_margin_back);
   this->get_parameter("min_laundry_depth", params_.min_laundry_depth);
   this->get_parameter("smoothing_alpha", params_.smoothing_alpha);
+  this->get_parameter("entrance_smoothing_alpha", params_.entrance_smoothing_alpha);
+  this->get_parameter("entrance_median_window", params_.entrance_median_window);
   this->get_parameter("voxel_size", params_.voxel_size);
 
   // Allow hot-reloading of tunable params without lifecycle restart.
@@ -94,7 +98,13 @@ LaundryDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
     -> rcl_interfaces::msg::SetParametersResult {
       for (const auto & p : params) {
         const auto & n = p.get_name();
-        if      (n == "plane.dist_threshold")  params_.plane_dist_threshold  = p.as_double();
+        if      (n == "roi.x_min")             params_.x_min                = p.as_double();
+        else if (n == "roi.x_max")             params_.x_max                = p.as_double();
+        else if (n == "roi.y_min")             params_.y_min                = p.as_double();
+        else if (n == "roi.y_max")             params_.y_max                = p.as_double();
+        else if (n == "roi.z_min")             params_.z_min                = p.as_double();
+        else if (n == "roi.z_max")             params_.z_max                = p.as_double();
+        else if (n == "plane.dist_threshold")  params_.plane_dist_threshold  = p.as_double();
         else if (n == "circle.dist_threshold") params_.circle_dist_threshold = p.as_double();
         else if (n == "circle.radius_min")     params_.circle_radius_min     = p.as_double();
         else if (n == "circle.radius_max")     params_.circle_radius_max     = p.as_double();
@@ -107,6 +117,8 @@ LaundryDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
         else if (n == "drum_margin_back")      params_.drum_margin_back      = p.as_double();
         else if (n == "min_laundry_depth")     params_.min_laundry_depth     = p.as_double();
         else if (n == "smoothing_alpha")       params_.smoothing_alpha       = p.as_double();
+        else if (n == "entrance_smoothing_alpha") params_.entrance_smoothing_alpha = p.as_double();
+        else if (n == "entrance_median_window") params_.entrance_median_window = static_cast<int>(p.as_int());
         else if (n == "voxel_size")            params_.voxel_size            = p.as_double();
       }
       rcl_interfaces::msg::SetParametersResult result;
@@ -163,6 +175,7 @@ LaundryDetectionComponent::on_deactivate(const rclcpp_lifecycle::State &) {
   pub_laundry_cloud_->on_deactivate();
   smoothed_centroid_initialized_ = false;
   smoothed_entrance_initialized_ = false;
+  entrance_history_.clear();
   return CallbackReturn::SUCCESS;
 }
 
@@ -330,14 +343,30 @@ void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud
   geometry_msgs::msg::Quaternion drum_quat = tf2::toMsg(Eigen::Quaterniond(drum_rot));
 
   // Use the RANSAC circle center (not a rim-point centroid, which biases upward
-  // since the camera sees the upper rim better). EMA-smooth the jittery estimate.
+  // since the camera sees the upper rim better). The raw centre exhibits broadband
+  // lateral jitter (±0.13 m, std 0.075) because only a partial porthole arc is
+  // visible; apply a sliding-window median to reject it, then EMA-polish.
   Eigen::Vector3d entrance = center;
+  {
+    const int win = std::max(1, params_.entrance_median_window);
+    entrance_history_.push_back(center);
+    while (static_cast<int>(entrance_history_.size()) > win) entrance_history_.pop_front();
+    Eigen::Vector3d med;
+    for (int a = 0; a < 3; ++a) {
+      std::vector<double> vals;
+      vals.reserve(entrance_history_.size());
+      for (const auto& e : entrance_history_) vals.push_back(e[a]);
+      std::nth_element(vals.begin(), vals.begin() + vals.size() / 2, vals.end());
+      med[a] = vals[vals.size() / 2];
+    }
+    entrance = med;
+  }
   if (!smoothed_entrance_initialized_) {
     smoothed_entrance_ = entrance;
     smoothed_entrance_initialized_ = true;
   } else {
-    smoothed_entrance_ = params_.smoothing_alpha * entrance +
-                         (1.0 - params_.smoothing_alpha) * smoothed_entrance_;
+    smoothed_entrance_ = params_.entrance_smoothing_alpha * entrance +
+                         (1.0 - params_.entrance_smoothing_alpha) * smoothed_entrance_;
   }
 
   // Broadcast drum_entrance whenever a circle is found (even if the drum is

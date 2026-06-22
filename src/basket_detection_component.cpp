@@ -11,6 +11,10 @@ BasketDetectionComponent::BasketDetectionComponent(const rclcpp::NodeOptions & o
 : rclcpp_lifecycle::LifecycleNode("basket_detection", options) {
   this->declare_parameter<std::string>("input_topic", "filtered_cloud");
   this->declare_parameter<std::string>("base_frame", "base_footprint");
+  this->declare_parameter<double>("roi.x_min", 0.1);
+  this->declare_parameter<double>("roi.x_max", 2.0);
+  this->declare_parameter<double>("roi.y_min", -0.8);
+  this->declare_parameter<double>("roi.y_max", 0.8);
   this->declare_parameter<double>("detection_height_min", 0.05);
   this->declare_parameter<double>("detection_height_max", 0.60);
   this->declare_parameter<double>("cluster_tolerance", 0.05);
@@ -28,10 +32,12 @@ BasketDetectionComponent::BasketDetectionComponent(const rclcpp::NodeOptions & o
 
   this->declare_parameter<bool>("cloth_detection_enabled", true);
   this->declare_parameter<double>("cloth_inner_margin", 0.08);
+  this->declare_parameter<double>("cloth_top_band", 0.04);
+  this->declare_parameter<double>("cloth_smoothing_alpha", 0.3);
 
   this->declare_parameter<std::string>("detection_id_prefix", "basket");
 
-  this->declare_parameter<std::string>("cloud_reliability", "best_effort");
+  this->declare_parameter<std::string>("cloud_reliability", "reliable");
   this->declare_parameter<std::string>("detections_pub_reliability", "reliable");
   this->declare_parameter<std::string>("debug_pub_reliability", "best_effort");
 }
@@ -41,6 +47,10 @@ BasketDetectionComponent::CallbackReturn BasketDetectionComponent::on_configure(
 
   try {
     params_.base_frame = this->get_parameter("base_frame").as_string();
+    params_.roi_x_min = this->get_parameter("roi.x_min").as_double();
+    params_.roi_x_max = this->get_parameter("roi.x_max").as_double();
+    params_.roi_y_min = this->get_parameter("roi.y_min").as_double();
+    params_.roi_y_max = this->get_parameter("roi.y_max").as_double();
     params_.detection_height_min = this->get_parameter("detection_height_min").as_double();
     params_.detection_height_max = this->get_parameter("detection_height_max").as_double();
     params_.cluster_tolerance = this->get_parameter("cluster_tolerance").as_double();
@@ -58,6 +68,8 @@ BasketDetectionComponent::CallbackReturn BasketDetectionComponent::on_configure(
 
     params_.cloth_detection_enabled = this->get_parameter("cloth_detection_enabled").as_bool();
     params_.cloth_inner_margin = this->get_parameter("cloth_inner_margin").as_double();
+    params_.cloth_top_band = this->get_parameter("cloth_top_band").as_double();
+    params_.cloth_smoothing_alpha = this->get_parameter("cloth_smoothing_alpha").as_double();
 
     params_.detection_id_prefix = this->get_parameter("detection_id_prefix").as_string();
 
@@ -92,6 +104,37 @@ BasketDetectionComponent::CallbackReturn BasketDetectionComponent::on_configure(
   RCLCPP_INFO(this->get_logger(), "debug pub reliability: %s", debug_pub_reliability_.c_str());
 
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
+
+  // Hot-reload tunable params without a lifecycle restart (topic/frame excluded).
+  param_cb_handle_ = this->add_on_set_parameters_callback(
+    [this](const std::vector<rclcpp::Parameter> & params)
+    -> rcl_interfaces::msg::SetParametersResult {
+      for (const auto & p : params) {
+        const auto & n = p.get_name();
+        if      (n == "roi.x_min")              params_.roi_x_min          = p.as_double();
+        else if (n == "roi.x_max")              params_.roi_x_max          = p.as_double();
+        else if (n == "roi.y_min")              params_.roi_y_min          = p.as_double();
+        else if (n == "roi.y_max")              params_.roi_y_max          = p.as_double();
+        else if (n == "detection_height_min")   params_.detection_height_min = p.as_double();
+        else if (n == "detection_height_max")   params_.detection_height_max = p.as_double();
+        else if (n == "cluster_tolerance")      params_.cluster_tolerance  = p.as_double();
+        else if (n == "min_cluster_size")       params_.min_cluster_size   = static_cast<int>(p.as_int());
+        else if (n == "max_cluster_size")       params_.max_cluster_size   = static_cast<int>(p.as_int());
+        else if (n == "basket_width_min")       params_.basket_width_min   = p.as_double();
+        else if (n == "basket_width_max")       params_.basket_width_max   = p.as_double();
+        else if (n == "basket_depth_min")       params_.basket_depth_min   = p.as_double();
+        else if (n == "basket_depth_max")       params_.basket_depth_max   = p.as_double();
+        else if (n == "basket_height_min")      params_.basket_height_min  = p.as_double();
+        else if (n == "basket_height_max")      params_.basket_height_max  = p.as_double();
+        else if (n == "handle_search_radius")   params_.handle_search_radius = p.as_double();
+        else if (n == "cloth_inner_margin")     params_.cloth_inner_margin = p.as_double();
+        else if (n == "cloth_top_band")         params_.cloth_top_band = p.as_double();
+        else if (n == "cloth_smoothing_alpha")  params_.cloth_smoothing_alpha = p.as_double();
+      }
+      rcl_interfaces::msg::SetParametersResult result;
+      result.successful = true;
+      return result;
+    });
 
   return CallbackReturn::SUCCESS;
 }
@@ -134,6 +177,7 @@ BasketDetectionComponent::CallbackReturn BasketDetectionComponent::on_deactivate
   pub_detections_->on_deactivate();
   pub_debug_cloud_->on_deactivate();
   sub_filtered_cloud_.reset();
+  smoothed_cloth_initialized_ = false;
   return CallbackReturn::SUCCESS;
 }
 
@@ -159,9 +203,16 @@ void BasketDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud2
   pcl::fromROSMsg(*msg, *cloud_filtered_);
   if (cloud_filtered_->empty()) return;
 
+  // Crop to the basket ROI (x forward, y lateral) BEFORE clustering so the basket
+  // cluster does not merge with the floor / washing machine / walls.
+  PointCloudUtility::applyPassThrough(
+    cloud_filtered_, cloud_basket_candidates_, "x", params_.roi_x_min, params_.roi_x_max);
+  PointCloudUtility::applyPassThrough(
+    cloud_basket_candidates_, cloud_basket_candidates_, "y", params_.roi_y_min, params_.roi_y_max);
+
   // Filter by height to isolate basket
   PointCloudUtility::applyPassThrough(
-    cloud_filtered_, cloud_basket_candidates_, "z", 
+    cloud_basket_candidates_, cloud_basket_candidates_, "z",
     params_.detection_height_min, params_.detection_height_max);
 
   if (cloud_basket_candidates_->empty()) {
@@ -358,67 +409,52 @@ void BasketDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud2
       }
 
       if (cloth_max_idx != -1) {
-        // Compute Normal at the highest point
-        pcl::NormalEstimation<PointT, pcl::Normal> ne;
-        ne.setInputCloud(basket_cloud);
-        ne.setIndices(cloth_indices);
-        pcl::search::KdTree<PointT>::Ptr tree(new pcl::search::KdTree<PointT>());
-        ne.setSearchMethod(tree);
-        
-        pcl::PointCloud<pcl::Normal>::Ptr normal_cloud(new pcl::PointCloud<pcl::Normal>);
-        ne.setRadiusSearch(0.05); // 5cm neighborhood
-        ne.compute(*normal_cloud);
-
-        // Find the index in the normal cloud (matching the input cloud indices)
-        // Since we provided cloth_indices, we need to map the max_idx back
-        int local_idx = -1;
-        for(size_t i=0; i<cloth_indices->indices.size(); ++i) {
-          if(cloth_indices->indices[i] == static_cast<int>(cloth_max_idx)) {
-            local_idx = i;
-            break;
+        // Stable cloth point: centroid of the top-band points (within
+        // cloth_top_band of the peak) rather than the single highest point, which
+        // jumps frame-to-frame on a deformable pile. Then EMA-smooth.
+        Eigen::Vector3d cloth_raw(0, 0, 0);
+        int cloth_band_n = 0;
+        for (int idx : cloth_indices->indices) {
+          const auto & cp = basket_cloud->points[idx];
+          if (cp.z > cloth_max_z - params_.cloth_top_band) {
+            cloth_raw += Eigen::Vector3d(cp.x, cp.y, cp.z);
+            cloth_band_n++;
           }
         }
-
-        tf2::Vector3 normal(0, 0, 1);
-        if (local_idx != -1 && std::isfinite(normal_cloud->points[local_idx].normal_z)) {
-          normal.setValue(
-            normal_cloud->points[local_idx].normal_x,
-            normal_cloud->points[local_idx].normal_y,
-            normal_cloud->points[local_idx].normal_z
-          );
-          // Ensure normal points upward
-          if (normal.z() < 0) normal = -normal;
+        if (cloth_band_n > 0) {
+          cloth_raw /= static_cast<double>(cloth_band_n);
+        } else {
+          const auto & mp = basket_cloud->points[cloth_max_idx];
+          cloth_raw = Eigen::Vector3d(mp.x, mp.y, mp.z);
+        }
+        if (!smoothed_cloth_initialized_) {
+          smoothed_cloth_ = cloth_raw;
+          smoothed_cloth_initialized_ = true;
+        } else {
+          smoothed_cloth_ = params_.cloth_smoothing_alpha * cloth_raw +
+                            (1.0 - params_.cloth_smoothing_alpha) * smoothed_cloth_;
         }
 
         // Create Pinch TF
         t.child_frame_id = det.id + "_cloth";
-        t.transform.translation.x = basket_cloud->points[cloth_max_idx].x;
-        t.transform.translation.y = basket_cloud->points[cloth_max_idx].y;
-        t.transform.translation.z = basket_cloud->points[cloth_max_idx].z;
+        t.transform.translation.x = smoothed_cloth_.x();
+        t.transform.translation.y = smoothed_cloth_.y();
+        t.transform.translation.z = smoothed_cloth_.z();
         t.header.frame_id = params_.base_frame; // Broadcast relative to base for simplicity
 
-        // Orientation: X-approach points opposite to normal
-        tf2::Vector3 approach = -normal;
-        tf2::Vector3 lateral;
-        
-        if (std::abs(approach.dot(tf2::Vector3(0, 0, 1))) > 0.9) {
-          // If approach is vertical, use basket yaw to define Y/Z
-          lateral = tf2::Vector3(-std::sin(yaw), std::cos(yaw), 0);
-        } else {
-          // Flatten onto horizontal plane for lateral orientation
-          lateral = approach.cross(tf2::Vector3(0, 0, 1)).normalized();
-        }
-        
-        tf2::Vector3 up = lateral.cross(approach).normalized();
-        tf2::Matrix3x3 m_pinch(
-          approach.x(), up.x(), lateral.x(),
-          approach.y(), up.y(), lateral.y(),
-          approach.z(), up.z(), lateral.z()
-        );
-        
-        tf2::Quaternion q_pinch;
-        m_pinch.getRotation(q_pinch);
-        t.transform.rotation = tf2::toMsg(q_pinch);
+        // Orientation: top-down pinch, matching the handle TFs (X down). The
+        // handles use X=down, Y=backward, Z=left in the basket frame; replicate it
+        // here in base_frame by applying the basket yaw so the cloth grasp axis
+        // points straight down just like the handles.
+        tf2::Matrix3x3 m_common(
+          0, -1,  0,   // X = down
+          0,  0,  1,   // Y = backward
+         -1,  0,  0);  // Z = left
+        tf2::Quaternion q_common;
+        m_common.getRotation(q_common);
+        tf2::Quaternion q_yaw;
+        q_yaw.setRPY(0, 0, yaw);
+        t.transform.rotation = tf2::toMsg(q_yaw * q_common);
         tf_broadcaster_->sendTransform(t);
       }
     }
