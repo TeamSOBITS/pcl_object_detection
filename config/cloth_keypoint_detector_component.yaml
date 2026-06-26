@@ -6,7 +6,12 @@
 
     # How far above the top surface of the cloth to place the grasp points (metres).
     # Lifts the gripper target off the table surface so fingers contact cloth, not table.
-    z_grasp_offset: 0.015
+    # NOTE: the SOBIT HOME arm cannot drop its wrist below ~z=0.45 m at a forward
+    # table reach (kinematic floor, verified in sim). The long_table top is ~0.40 m,
+    # so a tiny offset puts the grasp target below the reachable envelope and MoveIt
+    # fails to plan. 0.045 raises the target to ~0.457 m — at the reachable floor —
+    # while the gripper closing from just above still catches the flat cloth.
+    z_grasp_offset: 0.045
 
     # Minimum number of points in the cloud to accept a detection.
     # Rejects spurious small patches (noise, partial occlusion).

@@ -18,11 +18,11 @@
 
     # QoS reliability ("reliable" or "best_effort").
     #   input_reliability  : subscription to the raw camera point cloud.
-    #     Must be able to receive from the source. The Gazebo sim head camera
-    #     (/sobit_home/head_camera/depth/points) publishes RELIABLE, so this is
-    #     set to "reliable" to match. For a real depth sensor that publishes
-    #     BEST_EFFORT, set this to "best_effort".
+    #     Must match the source. The Gazebo sim head camera
+    #     (/sobit_home/head_camera/depth/points, node head_camera_point_cloud_xyz)
+    #     publishes BEST_EFFORT, so this must be "best_effort" or the
+    #     subscription is QoS-incompatible and receives ZERO frames.
     #   output_reliability : publisher of the filtered cloud consumed by the
     #     detection nodes. Keep "reliable" so detectors never drop frames.
-    input_reliability: "reliable"
+    input_reliability: "best_effort"
     output_reliability: "reliable"

@@ -39,6 +39,17 @@
     # Positive values move the TF away from the washer (towards the robot)
     depth_shift: 0.05
 
+    # Closed-drum front-face frame. Broadcast from the front-plane fit BEFORE the
+    # porthole circle fit, so it publishes even when the door is CLOSED (no
+    # visible porthole). Gives ApproachWasher a true surface normal to square the
+    # base to the door, instead of facing the SAM3 centroid.
+    closed_drum:
+      enable: true
+      frame: "closed_drum"
+      # Min dot(inward_normal, robot->face_dir) to accept the plane as the FRONT
+      # face. 1.0 = robot dead-on; 0.5 ~= within 60deg. Rejects side-wall fits.
+      min_align: 0.5
+
     # QoS reliability ("reliable" or "best_effort").
     #   cloud_reliability     : filtered input cloud subscription. Must match the
     #     preprocessor's output_reliability.

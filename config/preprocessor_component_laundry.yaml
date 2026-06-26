@@ -18,8 +18,9 @@
 
     # QoS reliability ("reliable" or "best_effort").
     #   input_reliability  : raw camera cloud subscription. The Gazebo sim head
-    #     camera publishes RELIABLE, so this is "reliable" to match. Use
-    #     "best_effort" for a real depth sensor that publishes BEST_EFFORT.
+    #     camera (node head_camera_point_cloud_xyz) publishes BEST_EFFORT, so
+    #     this MUST be "best_effort" or the subscription is QoS-incompatible and
+    #     receives ZERO frames ("incompatible QoS. No messages will be sent").
     #   output_reliability : filtered cloud publisher consumed by detectors.
-    input_reliability: "reliable"
+    input_reliability: "best_effort"
     output_reliability: "reliable"
