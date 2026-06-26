@@ -276,46 +276,57 @@ void ClothKeypointDetectorComponent::cloudCallback(
 
   // Quick-fold keypoints:
   //   cloth_fold_pa — anchor (mid-length on fold column)
-  //   cloth_fold_pb — neck/shoulder: FARTHER from robot (larger world X in base_footprint,
-  //                   since robot faces +Y and the shirt lies along X)
-  //   cloth_fold_pc — hem: CLOSER to robot (smaller world X)
+  //   cloth_fold_pb — neck/shoulder: FARTHER from the robot
+  //   cloth_fold_pc — hem:           CLOSER  to  the robot
   //
-  // Find PB/PC from actual X extent of points near col_y (column-local scan).
-  // This gives the true shirt edge along X regardless of the global percentile.
+  // Find PB/PC by scanning the MAJOR (PCA) axis within a band around the fold
+  // column on the MINOR axis. Working in OBB coordinates (dmaj/dmin) instead of
+  // world X/Y keeps the three keypoints on the shirt's true long axis for ANY
+  // in-plane yaw — a rotated (±90°) shirt is handled identically to a 0° shirt.
+  // (The previous world-X scan at a fixed world-Y collapsed PB/PC together once
+  // the shirt was rotated, because it ran across the shirt's short dimension.)
   // Band width scales with shirt width so it adapts to shirt size automatically.
   const double shirt_width_full = world_y_max_mid - world_y_min_mid;
-  const double col_y_band_raw = shirt_width_full * params_.col_band_fraction;
-  const double col_y_band = col_y_band_raw < 0.03 ? 0.03 : col_y_band_raw;
-  double col_x_max = -std::numeric_limits<double>::max();
-  double col_x_min =  std::numeric_limits<double>::max();
-  std::vector<double> col_x_vals;
-  col_x_vals.reserve(cloud->size());
+  const double col_band_raw = shirt_width_full * params_.col_band_fraction;
+  const double col_band = col_band_raw < 0.03 ? 0.03 : col_band_raw;
+  std::vector<double> col_dmaj_vals;
+  col_dmaj_vals.reserve(cloud->size());
   for (const auto & pt : cloud->points) {
-    if (std::abs(pt.y - col_y) <= col_y_band) {
-      col_x_vals.push_back(pt.x);
-      if (pt.x > col_x_max) col_x_max = pt.x;
-      if (pt.x < col_x_min) col_x_min = pt.x;
+    Eigen::Vector2d v(pt.x - cx, pt.y - cy);
+    const double dmin = v.dot(minor_ax);
+    if (std::abs(dmin - dmin_col_final) <= col_band) {
+      col_dmaj_vals.push_back(v.dot(major_ax));
     }
   }
 
-  double pb_x, pc_x;
-  if (!col_x_vals.empty()) {
-    std::sort(col_x_vals.begin(), col_x_vals.end());
+  double dmaj_pb, dmaj_pc;
+  if (!col_dmaj_vals.empty()) {
+    std::sort(col_dmaj_vals.begin(), col_dmaj_vals.end());
     const double pct_lo2 = params_.edge_percentile / 100.0;
     const double pct_hi2 = 1.0 - pct_lo2;
-    pc_x = col_x_vals[static_cast<size_t>(pct_lo2 * (col_x_vals.size() - 1))];
-    pb_x = col_x_vals[static_cast<size_t>(pct_hi2 * (col_x_vals.size() - 1))];
+    const double dmaj_lo = col_dmaj_vals[static_cast<size_t>(pct_lo2 * (col_dmaj_vals.size() - 1))];
+    const double dmaj_hi = col_dmaj_vals[static_cast<size_t>(pct_hi2 * (col_dmaj_vals.size() - 1))];
+    dmaj_pb = dmaj_hi;
+    dmaj_pc = dmaj_lo;
   } else {
-    // Fallback to global percentile
-    auto [p1x, p1y] = point_at(pmaj_far_dense);
-    auto [p2x, p2y] = point_at(pmaj_near_dense);
-    pb_x = (p1x >= p2x) ? p1x : p2x;
-    pc_x = (p1x >= p2x) ? p2x : p1x;
+    // Fallback to the global major-axis percentiles (same OBB-relative basis).
+    dmaj_pb = pmaj_far_dense;
+    dmaj_pc = pmaj_near_dense;
   }
 
+  // Map both ends to world XY on the fold column, then disambiguate near/far by
+  // distance from the robot (base_footprint origin) — NOT by world X. This keeps
+  // PB = far / PC = near correct at any yaw.
   auto [ax, ay] = point_at(pmaj_mid);
-  const double bx = pb_x; const double by = col_y;
-  const double cx2 = pc_x; const double cy2 = col_y;
+  auto [e1x, e1y] = point_at(dmaj_pb);
+  auto [e2x, e2y] = point_at(dmaj_pc);
+  const double d1 = std::hypot(e1x, e1y);
+  const double d2 = std::hypot(e2x, e2y);
+  // farther end → PB, nearer end → PC
+  const double bx  = (d1 >= d2) ? e1x : e2x;
+  const double by  = (d1 >= d2) ? e1y : e2y;
+  const double cx2 = (d1 >= d2) ? e2x : e1x;
+  const double cy2 = (d1 >= d2) ? e2y : e1y;
 
   const double z_grasp = box.center.position.z + box.size.z / 2.0 + params_.z_grasp_offset;
 
