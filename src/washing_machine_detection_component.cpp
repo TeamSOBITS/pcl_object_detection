@@ -28,6 +28,7 @@ WashingMachineDetectionComponent::WashingMachineDetectionComponent(const rclcpp:
 
   // Segmentation Parameters
   params_.plane_dist_threshold = this->declare_parameter<double>("plane.dist_threshold", 0.02);
+  params_.plane_vertical_eps_deg = this->declare_parameter<double>("plane.vertical_eps_deg", 20.0);
   params_.circle_dist_threshold = this->declare_parameter<double>("circle.dist_threshold", 0.02);
   params_.circle_radius_min = this->declare_parameter<double>("circle.radius_min", 0.15);
   params_.circle_radius_max = this->declare_parameter<double>("circle.radius_max", 0.30);
@@ -38,6 +39,11 @@ WashingMachineDetectionComponent::WashingMachineDetectionComponent(const rclcpp:
   params_.depth_shift = this->declare_parameter<double>("depth_shift", 0.0);
   params_.rotation_offset = this->declare_parameter<double>("rotation_offset", 0.0);
   params_.base_frame = this->declare_parameter<std::string>("base_frame", "base_footprint");
+
+  // Closed-drum front-face frame (door-closed approach aid).
+  params_.closed_drum_enable = this->declare_parameter<bool>("closed_drum.enable", true);
+  params_.closed_drum_frame = this->declare_parameter<std::string>("closed_drum.frame", "closed_drum");
+  params_.closed_drum_min_align = this->declare_parameter<double>("closed_drum.min_align", 0.5);
 
   // QoS Parameters
   params_.cloud_reliability = this->declare_parameter<std::string>("cloud_reliability", "best_effort");
@@ -121,6 +127,12 @@ void WashingMachineDetectionComponent::cloudCallback(const sensor_msgs::msg::Poi
     return;
   }
 
+  // Guard against a cloud callback that is in flight when on_cleanup() resets
+  // these members (rapid activate→cleanup cycling): the ACTIVE state check above
+  // is NOT atomic with this access — a callback can pass it and then race
+  // on_cleanup nulling the publisher/broadcaster → null deref → container crash.
+  // Bail out if either has already been torn down.
+  if (!pub_debug_cloud_ || !tf_broadcaster_) return;
   if (pub_debug_cloud_->get_subscription_count() == 0 && !tf_broadcaster_) return;
 
   // 1. Convert to PCL
@@ -137,17 +149,43 @@ void WashingMachineDetectionComponent::cloudCallback(const sensor_msgs::msg::Poi
   // 3. Plane Segmentation (Find the front face)
   pcl::ModelCoefficients::Ptr coefficients_plane(new pcl::ModelCoefficients);
   pcl::PointIndices::Ptr inliers_plane(new pcl::PointIndices);
+  // Constrain RANSAC to VERTICAL planes: the door face is vertical, so its
+  // normal is HORIZONTAL (perpendicular to world up Z). An unconstrained
+  // SACMODEL_PLANE grabs the largest flat region — on a real washer that's the
+  // horizontal top/floor (normal ≈ ±Z), giving a meaningless "door normal" that
+  // points up/down. SACMODEL_PERPENDICULAR_PLANE with axis = Z keeps only planes
+  // whose normal is PERPENDICULAR to Z (i.e. vertical planes); eps is how far
+  // (deg) the normal may tilt from horizontal.
+  // SACMODEL_PERPENDICULAR_PLANE keeps planes whose normal is perpendicular to
+  // the supplied axis (within eps). The door face is vertical → its normal is
+  // perpendicular to world-up Z, so axis = Z selects vertical planes and rejects
+  // the horizontal top/floor. eps = max tilt (deg) of the normal from horizontal.
   pcl::SACSegmentation<PointT> seg;
   seg.setOptimizeCoefficients(true);
-  seg.setModelType(pcl::SACMODEL_PLANE);
+  seg.setModelType(pcl::SACMODEL_PERPENDICULAR_PLANE);
+  seg.setAxis(Eigen::Vector3f(0.0f, 0.0f, 1.0f));
+  seg.setEpsAngle(params_.plane_vertical_eps_deg * M_PI / 180.0);
   seg.setMethodType(pcl::SAC_RANSAC);
   seg.setDistanceThreshold(params_.plane_dist_threshold);
   seg.setInputCloud(cloud_roi_);
   seg.segment(*inliers_plane, *coefficients_plane);
 
   if (inliers_plane->indices.empty()) {
-    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Could not estimate a planar model.");
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+      "Could not estimate a VERTICAL planar model (no door-like plane in ROI).");
     return;
+  }
+  // Defensive post-check: reject a fit whose normal is still too vertical (the
+  // door plane normal must be near-horizontal). |nz| = |cos(angle from up)|.
+  {
+    const double nz = std::fabs(coefficients_plane->values[2]);
+    const double max_nz = std::sin(params_.plane_vertical_eps_deg * M_PI / 180.0);
+    if (nz > max_nz) {
+      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+        "Rejected plane: normal too vertical (|nz|=%.3f > %.3f) — not the door face.",
+        nz, max_nz);
+      return;
+    }
   }
 
   RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Plane found with %zu points. Coeffs: [%f, %f, %f, %f]", 
@@ -178,6 +216,17 @@ void WashingMachineDetectionComponent::cloudCallback(const sensor_msgs::msg::Poi
   extract.setInputCloud(cloud_plane_);
   extract.setIndices(largest_cluster);
   extract.filter(*cloud_plane_);
+
+  // 4b. CLOSED-DRUM front-face frame. Broadcast HERE — from the front-plane fit,
+  // BEFORE the porthole circle fit below — so it is published even when the door
+  // is CLOSED (closed door → no visible porthole → the circle fit returns and we
+  // never reach the rim broadcast). The front face centroid + plane normal give
+  // ApproachWasher a true surface normal to square the base to the door, instead
+  // of facing the SAM3 centroid along the robot→centroid ray.
+  if (params_.closed_drum_enable) {
+    broadcastClosedDrum(coefficients_plane, cloud_plane_, msg->header.frame_id,
+                        this->get_clock()->now());
+  }
 
   // 5. Circle Detection
   // Project to plane to ensure perfection
@@ -285,6 +334,78 @@ void WashingMachineDetectionComponent::cloudCallback(const sensor_msgs::msg::Poi
     debug_msg.header = msg->header;
     pub_debug_cloud_->publish(debug_msg);
   }
+}
+
+void WashingMachineDetectionComponent::broadcastClosedDrum(
+    const pcl::ModelCoefficients::ConstPtr & plane_coeffs,
+    const PointCloud::ConstPtr & face_cloud,
+    const std::string & cloud_frame,
+    const rclcpp::Time & stamp) {
+  if (face_cloud->empty()) return;
+
+  // Front-face centroid (the "middle point of surface" anchor).
+  Eigen::Vector4f c4;
+  if (pcl::compute3DCentroid(*face_cloud, c4) == 0) return;
+  Eigen::Vector3d center(c4.x(), c4.y(), c4.z());
+
+  // Plane normal. Orient it INTO the machine: the cloud is in base_footprint
+  // (robot at origin, +X forward) and the washer sits in front (center.x > 0),
+  // so the inward normal points roughly +X. Flip so it points away from the
+  // robot (from the face centroid towards +cloud-X away from origin).
+  Eigen::Vector3d normal(plane_coeffs->values[0],
+                         plane_coeffs->values[1],
+                         plane_coeffs->values[2]);
+  normal.normalize();
+  // dir from robot origin to the face centroid (the "into machine" direction).
+  Eigen::Vector3d to_face = center.normalized();
+  if (normal.dot(to_face) < 0.0) normal = -normal;  // make normal point INTO machine
+
+  // GATE: reject a side-wall plane. The FRONT face's inward normal must align
+  // with the robot→face direction (front face faces the robot; a side wall's
+  // normal is roughly perpendicular to that ray → low dot).
+  const double align = normal.dot(to_face);
+  if (align < params_.closed_drum_min_align) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+      "closed_drum: plane align %.2f < %.2f — likely a side wall, not the front face.",
+      align, params_.closed_drum_min_align);
+    return;
+  }
+
+  // EMA smoothing (separate state from the rim center/normal).
+  if (is_first_drum_) {
+    last_drum_center_ = center;
+    last_drum_normal_ = normal;
+    is_first_drum_ = false;
+  } else {
+    const double a = params_.smoothing_alpha;
+    last_drum_center_ = a * center + (1.0 - a) * last_drum_center_;
+    last_drum_normal_ = (a * normal + (1.0 - a) * last_drum_normal_).normalized();
+  }
+
+  // Frame: X = inward normal (heading the base should face), Z up-ish, Y = Z×X.
+  Eigen::Vector3d x_axis = last_drum_normal_;
+  Eigen::Vector3d world_up(0, 0, 1);
+  Eigen::Vector3d z_axis = (world_up - world_up.dot(x_axis) * x_axis).normalized();
+  Eigen::Vector3d y_axis = z_axis.cross(x_axis).normalized();
+  Eigen::Matrix3d m_rot;
+  m_rot.col(0) = x_axis;
+  m_rot.col(1) = y_axis;
+  m_rot.col(2) = z_axis;
+  Eigen::Quaterniond q(m_rot);
+
+  geometry_msgs::msg::TransformStamped t;
+  t.header.stamp = stamp;
+  t.header.frame_id = cloud_frame;
+  t.child_frame_id = params_.closed_drum_frame;
+  t.transform.translation.x = last_drum_center_.x();
+  t.transform.translation.y = last_drum_center_.y();
+  t.transform.translation.z = last_drum_center_.z();
+  t.transform.rotation = tf2::toMsg(q);
+  tf_broadcaster_->sendTransform(t);
+
+  RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+    "closed_drum @ (%.3f, %.3f, %.3f) normal-into-machine align=%.2f",
+    last_drum_center_.x(), last_drum_center_.y(), last_drum_center_.z(), align);
 }
 
 } // namespace pcl_object_detection

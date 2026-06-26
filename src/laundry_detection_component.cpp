@@ -6,6 +6,9 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/project_inliers.h>
 #include <pcl/common/centroid.h>
+#include <pcl/console/print.h>
+
+#include <limits>
 
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
@@ -30,6 +33,7 @@ LaundryDetectionComponent::LaundryDetectionComponent(const rclcpp::NodeOptions &
   params_.circle_dist_threshold = this->declare_parameter<double>("circle.dist_threshold", 0.02);
   params_.circle_radius_min = this->declare_parameter<double>("circle.radius_min", 0.18);
   params_.circle_radius_max = this->declare_parameter<double>("circle.radius_max", 0.26);
+  params_.circle_min_inliers = this->declare_parameter<int>("circle.min_inliers", 30);
 
   // Drum Filtering
   params_.drum_depth = this->declare_parameter<double>("drum_depth", 0.50);
@@ -50,6 +54,20 @@ LaundryDetectionComponent::LaundryDetectionComponent(const rclcpp::NodeOptions &
   params_.entrance_median_window = this->declare_parameter<int>("entrance_median_window", 7);
   params_.voxel_size = this->declare_parameter<double>("voxel_size", 0.02);
 
+  // Cavity-validation gates (closed-door false-positive suppression).
+  params_.cavity_expected_machine_y     = this->declare_parameter<double>("cavity.expected_machine_y", 0.0);
+  params_.cavity_machine_center_tol_y   = this->declare_parameter<double>("cavity.machine_center_tol_y", 0.30);
+  params_.cavity_center_x_min           = this->declare_parameter<double>("cavity.center_x_min", 0.6);
+  params_.cavity_center_x_max           = this->declare_parameter<double>("cavity.center_x_max", 1.8);
+  params_.cavity_center_z_min           = this->declare_parameter<double>("cavity.center_z_min", 0.30);
+  params_.cavity_center_z_max           = this->declare_parameter<double>("cavity.center_z_max", 0.80);
+  params_.cavity_min_axial_spread       = this->declare_parameter<double>("cavity.min_axial_spread", 0.05);
+  params_.cavity_min_drum_volume_points = this->declare_parameter<int>("cavity.min_drum_volume_points", 40);
+  params_.cavity_min_cluster_fraction   = this->declare_parameter<double>("cavity.min_cluster_fraction", 0.30);
+
+  params_.entrance_y_offset = this->declare_parameter<double>("entrance_y_offset", 0.0);
+  params_.entrance_z_offset = this->declare_parameter<double>("entrance_z_offset", 0.0);
+
   params_.cloud_reliability = this->declare_parameter<std::string>("cloud_reliability", "best_effort");
   params_.drum_pub_reliability = this->declare_parameter<std::string>("drum_pub_reliability", "best_effort");
   params_.laundry_pub_reliability = this->declare_parameter<std::string>("laundry_pub_reliability", "best_effort");
@@ -58,6 +76,8 @@ LaundryDetectionComponent::LaundryDetectionComponent(const rclcpp::NodeOptions &
   cloud_roi_ = std::make_shared<PointCloud>();
   cloud_drum_ = std::make_shared<PointCloud>();
   cloud_laundry_ = std::make_shared<PointCloud>();
+
+  pcl::console::setVerbosityLevel(pcl::console::L_ERROR);
 }
 
 LaundryDetectionComponent::CallbackReturn
@@ -78,6 +98,7 @@ LaundryDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
   this->get_parameter("circle.dist_threshold", params_.circle_dist_threshold);
   this->get_parameter("circle.radius_min", params_.circle_radius_min);
   this->get_parameter("circle.radius_max", params_.circle_radius_max);
+  this->get_parameter("circle.min_inliers", params_.circle_min_inliers);
   this->get_parameter("drum_depth", params_.drum_depth);
   this->get_parameter("shell_threshold", params_.shell_threshold);
   this->get_parameter("cluster_tolerance", params_.cluster_tolerance);
@@ -90,6 +111,17 @@ LaundryDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
   this->get_parameter("entrance_smoothing_alpha", params_.entrance_smoothing_alpha);
   this->get_parameter("entrance_median_window", params_.entrance_median_window);
   this->get_parameter("voxel_size", params_.voxel_size);
+  this->get_parameter("cavity.expected_machine_y", params_.cavity_expected_machine_y);
+  this->get_parameter("cavity.machine_center_tol_y", params_.cavity_machine_center_tol_y);
+  this->get_parameter("cavity.center_x_min", params_.cavity_center_x_min);
+  this->get_parameter("cavity.center_x_max", params_.cavity_center_x_max);
+  this->get_parameter("cavity.center_z_min", params_.cavity_center_z_min);
+  this->get_parameter("cavity.center_z_max", params_.cavity_center_z_max);
+  this->get_parameter("cavity.min_axial_spread", params_.cavity_min_axial_spread);
+  this->get_parameter("cavity.min_drum_volume_points", params_.cavity_min_drum_volume_points);
+  this->get_parameter("cavity.min_cluster_fraction", params_.cavity_min_cluster_fraction);
+  this->get_parameter("entrance_y_offset", params_.entrance_y_offset);
+  this->get_parameter("entrance_z_offset", params_.entrance_z_offset);
 
   // Allow hot-reloading of tunable params without lifecycle restart.
   // topic/frame are excluded as they require re-creating the subscription.
@@ -108,6 +140,7 @@ LaundryDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
         else if (n == "circle.dist_threshold") params_.circle_dist_threshold = p.as_double();
         else if (n == "circle.radius_min")     params_.circle_radius_min     = p.as_double();
         else if (n == "circle.radius_max")     params_.circle_radius_max     = p.as_double();
+        else if (n == "circle.min_inliers")    params_.circle_min_inliers    = static_cast<int>(p.as_int());
         else if (n == "drum_depth")            params_.drum_depth            = p.as_double();
         else if (n == "shell_threshold")       params_.shell_threshold       = p.as_double();
         else if (n == "cluster_tolerance")     params_.cluster_tolerance     = p.as_double();
@@ -120,6 +153,17 @@ LaundryDetectionComponent::on_configure(const rclcpp_lifecycle::State &) {
         else if (n == "entrance_smoothing_alpha") params_.entrance_smoothing_alpha = p.as_double();
         else if (n == "entrance_median_window") params_.entrance_median_window = static_cast<int>(p.as_int());
         else if (n == "voxel_size")            params_.voxel_size            = p.as_double();
+        else if (n == "cavity.expected_machine_y")     params_.cavity_expected_machine_y     = p.as_double();
+        else if (n == "cavity.machine_center_tol_y")   params_.cavity_machine_center_tol_y   = p.as_double();
+        else if (n == "cavity.center_x_min")           params_.cavity_center_x_min           = p.as_double();
+        else if (n == "cavity.center_x_max")           params_.cavity_center_x_max           = p.as_double();
+        else if (n == "cavity.center_z_min")           params_.cavity_center_z_min           = p.as_double();
+        else if (n == "cavity.center_z_max")           params_.cavity_center_z_max           = p.as_double();
+        else if (n == "cavity.min_axial_spread")       params_.cavity_min_axial_spread       = p.as_double();
+        else if (n == "cavity.min_drum_volume_points") params_.cavity_min_drum_volume_points = static_cast<int>(p.as_int());
+        else if (n == "cavity.min_cluster_fraction")   params_.cavity_min_cluster_fraction   = p.as_double();
+        else if (n == "entrance_y_offset")             params_.entrance_y_offset             = p.as_double();
+        else if (n == "entrance_z_offset")             params_.entrance_z_offset             = p.as_double();
       }
       rcl_interfaces::msg::SetParametersResult result;
       result.successful = true;
@@ -176,6 +220,7 @@ LaundryDetectionComponent::on_deactivate(const rclcpp_lifecycle::State &) {
   smoothed_centroid_initialized_ = false;
   smoothed_entrance_initialized_ = false;
   entrance_history_.clear();
+  last_known_rotation_ = geometry_msgs::msg::Quaternion{};
   return CallbackReturn::SUCCESS;
 }
 
@@ -198,6 +243,12 @@ void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud
   // it), so gate processing on ACTIVE here to honour the lifecycle contract.
   if (this->get_current_state().id() !=
       lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
+    return;
+  }
+  // The ACTIVE check above is NOT atomic with on_cleanup() resetting these
+  // members — a callback can pass it and then race cleanup, dereferencing a null
+  // publisher/broadcaster and crashing the component container. Bail if torn down.
+  if (!tf_broadcaster_ || !pub_drum_cloud_ || !pub_laundry_cloud_) {
     return;
   }
 
@@ -298,6 +349,19 @@ void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud
   extract.setIndices(inliers_plane);
   extract.filter(*cloud_plane);
 
+  // Guard CIRCLE3D against sparse/near-collinear plane clouds. A closed door (or
+  // an off-angle wall) leaves few coplanar points; RANSAC then floods stderr with
+  // "isSampleGood: Sample points too similar or collinear!" (13k+ lines/run,
+  // bypasses the ROS logger). Skip the fit when the plane is too small to host a
+  // real porthole — circle_min_inliers points minimum.
+  if (static_cast<int>(cloud_plane->size()) < params_.circle_min_inliers) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+      "Plane has %zu points (< %d) — too sparse for a porthole, skipping circle fit.",
+      cloud_plane->size(), params_.circle_min_inliers);
+    republish_last_known();
+    return;
+  }
+
   pcl::ModelCoefficients::Ptr coefficients_circle(new pcl::ModelCoefficients);
   pcl::PointIndices::Ptr inliers_circle(new pcl::PointIndices);
   pcl::SACSegmentation<PointT> seg_circle;
@@ -322,6 +386,31 @@ void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud
   // Circle params: [center_x, center_y, center_z, radius, normal_x, normal_y, normal_z]
   Eigen::Vector3d center(coefficients_circle->values[0], coefficients_circle->values[1], coefficients_circle->values[2]);
   double radius = coefficients_circle->values[3];
+
+  // GATE 1: circle-centre position. Closed door → RANSAC fits side wall →
+  // CIRCLE3D over-fits a coplanar circle off-axis (live: y=+0.535). Reject any
+  // centre outside the expected machine box. Bare return (no republish): wall
+  // fit is geometrically invalid, and we exit BEFORE the drum_entrance
+  // broadcast so no phantom opening frame is published.
+  {
+    const double dy = std::abs(center.y() - params_.cavity_expected_machine_y);
+    const bool y_ok = dy <= params_.cavity_machine_center_tol_y;
+    const bool x_ok = center.x() >= params_.cavity_center_x_min &&
+                      center.x() <= params_.cavity_center_x_max;
+    const bool z_ok = center.z() >= params_.cavity_center_z_min &&
+                      center.z() <= params_.cavity_center_z_max;
+    if (!y_ok || !x_ok || !z_ok) {
+      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+        "GATE1 reject: circle centre (x=%.3f y=%.3f z=%.3f) outside machine box "
+        "[x %.2f..%.2f, |y-%.2f|<=%.2f, z %.2f..%.2f] — likely closed-door wall.",
+        center.x(), center.y(), center.z(),
+        params_.cavity_center_x_min, params_.cavity_center_x_max,
+        params_.cavity_expected_machine_y, params_.cavity_machine_center_tol_y,
+        params_.cavity_center_z_min, params_.cavity_center_z_max);
+      return;
+    }
+  }
+
   Eigen::Vector3d normal(coefficients_plane->values[0], coefficients_plane->values[1], coefficients_plane->values[2]);
   normal.normalize();
   
@@ -379,8 +468,10 @@ void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud
     te.header.frame_id = msg->header.frame_id;
     te.child_frame_id = "drum_entrance";
     te.transform.translation.x = smoothed_entrance_.x();
-    te.transform.translation.y = smoothed_entrance_.y();
-    te.transform.translation.z = smoothed_entrance_.z();
+    // Correct the partial-arc bias: RANSAC pulls the centre toward the visible
+    // arc (right/high), so push back toward the true symmetric centre.
+    te.transform.translation.y = smoothed_entrance_.y() + params_.entrance_y_offset;
+    te.transform.translation.z = smoothed_entrance_.z() + params_.entrance_z_offset;
     te.transform.rotation = drum_quat;
     tf_broadcaster_->sendTransform(te);
   }
@@ -408,6 +499,16 @@ void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud
 
   if (cloud_drum_->empty()) { republish_last_known(); return; }
 
+  // GATE 3a: min drum-volume occupancy, distinct from cluster_min_size (which
+  // gates a single cluster). Closed-door wall leaves the cylinder near-empty.
+  // Bare return: cavity not validly observed → do not keep stale TF alive.
+  if (static_cast<int>(cloud_drum_->size()) < params_.cavity_min_drum_volume_points) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+      "GATE3a reject: drum volume has %zu points (< %d) — cavity not present.",
+      cloud_drum_->size(), params_.cavity_min_drum_volume_points);
+    return;
+  }
+
   // 6. Cluster Laundry
   std::vector<pcl::PointIndices> cluster_indices;
   pcl::EuclideanClusterExtraction<PointT> ec;
@@ -430,6 +531,40 @@ void LaundryDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud
   extract.setInputCloud(cloud_drum_);
   extract.setIndices(laundry_inliers);
   extract.filter(*cloud_laundry_);
+
+  // GATE 2: cavity axial spread. Real pile has depth along drum axis; coplanar
+  // wall patch is ~flat. Bare return: flat patch is not a cavity pile.
+  {
+    double axial_min = std::numeric_limits<double>::max();
+    double axial_max = std::numeric_limits<double>::lowest();
+    for (const auto& point : cloud_laundry_->points) {
+      Eigen::Vector3d p(point.x, point.y, point.z);
+      const double d = (p - center).dot(drum_dir);
+      axial_min = std::min(axial_min, d);
+      axial_max = std::max(axial_max, d);
+    }
+    const double axial_spread = axial_max - axial_min;
+    if (axial_spread < params_.cavity_min_axial_spread) {
+      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+        "GATE2 reject: cluster axial spread %.3f m (< %.3f) — flat wall patch.",
+        axial_spread, params_.cavity_min_axial_spread);
+      return;
+    }
+  }
+
+  // GATE 3b: largest cluster must be a real fraction of carved drum volume.
+  // Real pile dominates; wall noise fragments. Bare return: no coherent pile.
+  {
+    const double frac = static_cast<double>(cloud_laundry_->size()) /
+                        std::max<std::size_t>(1, cloud_drum_->size());
+    if (frac < params_.cavity_min_cluster_fraction) {
+      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+        "GATE3b reject: largest cluster %.0f%% of drum volume (< %.0f%%) — "
+        "fragmented noise.",
+        100.0 * frac, 100.0 * params_.cavity_min_cluster_fraction);
+      return;
+    }
+  }
 
   // 7. Calculate Centroid for TF
   Eigen::Vector4f laundry_centroid;

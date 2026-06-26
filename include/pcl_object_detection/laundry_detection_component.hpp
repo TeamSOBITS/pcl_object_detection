@@ -49,6 +49,8 @@ private:
     double circle_dist_threshold;
     double circle_radius_min;
     double circle_radius_max;
+    int circle_min_inliers;  // min plane points before attempting CIRCLE3D fit
+                             // (guards PCL collinear-sample stderr flood)
     double drum_depth;
     double shell_threshold;
     double cluster_tolerance;
@@ -65,7 +67,29 @@ private:
                                      // raw circle centre before the EMA, to reject
                                      // the broadband ±0.13 m lateral RANSAC jitter
     double voxel_size;
-    
+
+    // Cavity-validation gates: reject phantom laundry_item on a CLOSED door.
+    // Closed door has no porthole → RANSAC fits side wall, CIRCLE3D over-fits a
+    // coplanar circle off-axis (measured centre y=+0.535), wall points cluster
+    // into a fake pile. These gates reject that geometry; a real open drum
+    // passes.
+    double cavity_expected_machine_y;    // expected lateral porthole centre
+    double cavity_machine_center_tol_y;  // |center.y - expected| reject band
+    double cavity_center_x_min;          // accept circle centre X in [min,max]
+    double cavity_center_x_max;
+    double cavity_center_z_min;          // accept circle centre Z in [min,max]
+    double cavity_center_z_max;
+    double cavity_min_axial_spread;      // min depth-into-drum extent of cluster
+    int    cavity_min_drum_volume_points;// min points carved into drum volume
+    double cavity_min_cluster_fraction;  // largest cluster / drum volume points
+
+    // drum_entrance lateral/vertical correction: RANSAC fits only a partial
+    // porthole arc, biasing the circle centre toward the visible arc (measured
+    // ~0.046 m right, ~0.03 m high vs the symmetric drum-cloud centre). Apply a
+    // fixed offset in base_footprint so drum_entrance lands on the true centre.
+    double entrance_y_offset;  // (m) +Y = robot left
+    double entrance_z_offset;  // (m) +Z = up
+
     std::string input_topic;
     std::string base_frame;
     std::string cloud_reliability;

@@ -197,6 +197,10 @@ BasketDetectionComponent::CallbackReturn BasketDetectionComponent::on_shutdown(c
 }
 
 void BasketDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
+  if (!tf_broadcaster_ || !pub_detections_ || !pub_debug_cloud_ ||
+      !cloud_filtered_ || !cloud_basket_candidates_) {
+    return;
+  }
   cloud_filtered_->clear();
   cloud_basket_candidates_->clear();
 

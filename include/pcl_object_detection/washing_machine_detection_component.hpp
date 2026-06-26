@@ -14,6 +14,7 @@
 // PCL Core
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/ModelCoefficients.h>
 #include <pcl/segmentation/extract_clusters.h>
 
 // Project Utils
@@ -45,6 +46,24 @@ private:
   /** @brief Main processing callback for incoming point clouds */
   void cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
 
+  /**
+   * @brief Broadcast the `closed_drum` TF frame from the fitted front plane.
+   *
+   * Anchored at the front-face cluster centroid; oriented X = inward normal
+   * (into the machine, the heading the base should adopt to face the door
+   * square), Y = up×X, Z = X×Y. Gated so a side-wall plane is rejected. EMA
+   * smoothed. Works door-open OR closed (no porthole needed).
+   *
+   * @param plane_coeffs Fitted plane coefficients [a,b,c,d] (cloud frame).
+   * @param face_cloud   Front-face cluster (cloud frame) for the centroid.
+   * @param cloud_frame  Frame id of the point cloud (TF parent).
+   * @param stamp        Timestamp for the broadcast transform.
+   */
+  void broadcastClosedDrum(const pcl::ModelCoefficients::ConstPtr & plane_coeffs,
+                           const PointCloud::ConstPtr & face_cloud,
+                           const std::string & cloud_frame,
+                           const rclcpp::Time & stamp);
+
   // ROS 2 Communication
   // Dedicated callback group so the executor reliably services the
   // subscription created during a lifecycle transition (see .cpp).
@@ -72,6 +91,11 @@ private:
 
     // Plane Segmentation
     double plane_dist_threshold;
+    // Max allowed tilt (deg) of the door plane from TRUE VERTICAL. The door face
+    // is vertical, so its normal is horizontal (perpendicular to world up). We
+    // constrain RANSAC to planes whose normal is within this angle of horizontal,
+    // rejecting the machine top / floor (whose normal is vertical).
+    double plane_vertical_eps_deg;
 
     // Circle Segmentation
     double circle_dist_threshold;
@@ -85,6 +109,16 @@ private:
     std::string opening_axis_side; // "left" or "right"
     double depth_shift;
     double rotation_offset;
+
+    // Closed-drum front-face frame. Broadcast from the front-plane fit BEFORE the
+    // porthole circle fit, so it is published even when the door is CLOSED (no
+    // visible porthole → circle fit fails). Gives ApproachWasher a true surface
+    // normal to square the base to the door face, instead of facing a centroid.
+    bool   closed_drum_enable;
+    std::string closed_drum_frame;
+    // Min |dot(normal, plane→robot dir)| to accept the plane as the FRONT face
+    // (not a side wall): the front face normal must point roughly at the robot.
+    double closed_drum_min_align;
   } params_;
 
   // Pre-allocated point clouds
@@ -97,6 +131,11 @@ private:
   bool is_first_detection_ = true;
   Eigen::Vector3d last_center_;
   Eigen::Vector3d last_normal_;
+  // Closed-drum EMA state (separate from rim center/normal above — different
+  // anchor point: the front-face centroid, not the porthole rim).
+  bool is_first_drum_ = true;
+  Eigen::Vector3d last_drum_center_;
+  Eigen::Vector3d last_drum_normal_;
 };
 
 }  // namespace pcl_object_detection

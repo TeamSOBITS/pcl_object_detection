@@ -176,6 +176,14 @@ PlaceableDetectionComponent::CallbackReturn PlaceableDetectionComponent::on_shut
 }
 
 void PlaceableDetectionComponent::cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
+  // Lifecycle safety: a cloud callback can be in flight when on_cleanup() resets
+  // the publishers / broadcaster / PCL buffers (rapid activate→cleanup cycling by
+  // the FSM). Dereferencing any after reset crashes the component container.
+  if (!tf_broadcaster_ || !pub_detections_ || !pub_debug_cloud_ ||
+      !cloud_filtered_ || !cloud_table_zone_ || !cloud_plane_ ||
+      !cloud_obstacles_ || !cloud_placeable_) {
+    return;
+  }
   // Reset PCL buffers
   cloud_filtered_->clear();
   cloud_table_zone_->clear();
